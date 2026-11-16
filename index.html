@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Pocket Tools — 100 tools, one file each. No install. No internet. No signup.</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; background: #0b1020; color: #e8ebf5; min-height: 100vh; }
+  .wrap { max-width: 960px; margin: 0 auto; padding: 32px 18px 60px; }
+  h1 { font-size: 2.2rem; letter-spacing: -0.5px; }
+  h1 .accent { color: #6c5cff; }
+  .tagline { color: #9aa3bd; margin-top: 10px; font-size: 1.05rem; line-height: 1.55; }
+  .badges { margin-top: 16px; display: flex; flex-wrap: wrap; gap: 8px; }
+  .badge { background: #151b31; border: 1px solid #26304f; color: #c6cdea; padding: 6px 12px; border-radius: 999px; font-size: 0.85rem; }
+  .search { margin: 28px 0 8px; width: 100%; padding: 14px 16px; border-radius: 12px; border: 1px solid #26304f; background: #151b31; color: #e8ebf5; font-size: 1rem; outline: none; }
+  .search:focus { border-color: #6c5cff; }
+  h2 { margin: 30px 0 14px; font-size: 1.25rem; color: #c6cdea; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px; }
+  a.tool { display: block; background: #151b31; border: 1px solid #232c49; border-radius: 14px; padding: 16px; text-decoration: none; color: #e8ebf5; transition: border-color .15s, transform .15s; }
+  a.tool:hover { border-color: #6c5cff; transform: translateY(-2px); }
+  .tool .name { font-weight: 650; font-size: 1rem; }
+  .tool .desc { color: #9aa3bd; font-size: 0.88rem; margin-top: 6px; line-height: 1.45; }
+  .how { background: #151b31; border: 1px solid #232c49; border-radius: 14px; padding: 18px; margin-top: 34px; line-height: 1.65; color: #c6cdea; }
+  .how b { color: #e8ebf5; }
+  footer { margin-top: 36px; color: #9aa3bd; font-size: 0.9rem; line-height: 1.6; }
+  .hidden { display: none !important; }
+  .nores { color: #9aa3bd; margin-top: 16px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>🧰 Pocket <span class="accent">Tools</span></h1>
+  <p class="tagline">Useful tools, each in <b>one single HTML file</b>. Download a tool, double-click it, it works — on any phone or laptop, with no internet, no install, no signup, no ads, and nothing you type or upload ever leaves your device.</p>
+  <div class="badges">
+    <span class="badge">📴 Works 100% offline</span>
+    <span class="badge">🔒 Private — files never leave your device</span>
+    <span class="badge">🆓 Free forever</span>
+    <span class="badge">📄 1 tool = 1 file</span>
+    <span class="badge" id="countBadge">21 tools live · roadmap: 100</span>
+  </div>
+
+  <input class="search" id="search" type="text" placeholder="Search tools… try 'emi', 'photo', 'password'">
+  <p class="nores hidden" id="nores">No tool matches that yet — it's probably on the road to 100.</p>
+
+  <h2>🖼️ Image tools</h2>
+  <div class="grid">
+    <a class="tool" href="tools/image-compressor.html"><div class="name">Image Compressor</div><div class="desc">Shrink a photo's file size with a quality slider. See before vs after KB.</div></a>
+    <a class="tool" href="tools/exam-photo-resizer.html"><div class="name">Exam Photo Resizer</div><div class="desc">Make your photo / signature exactly fit JEE, NEET, SSC, UPSC form KB limits.</div></a>
+    <a class="tool" href="tools/passport-photo-sheet.html"><div class="name">Passport Photo Sheet</div><div class="desc">One photo → a printable 4×6 sheet with 8 passport-size copies.</div></a>
+    <a class="tool" href="tools/image-converter.html"><div class="name">Image Converter</div><div class="desc">Convert PNG ↔ JPG ↔ WebP, with optional resize.</div></a>
+    <a class="tool" href="tools/meme-maker.html"><div class="name">Meme Maker</div><div class="desc">Add top / bottom text to any image and download your meme.</div></a>
+    <a class="tool" href="tools/signature-pad.html"><div class="name">Signature Pad</div><div class="desc">Draw your signature, download it as a transparent PNG for forms.</div></a>
+    <a class="tool" href="tools/color-picker.html"><div class="name">Color Picker</div><div class="desc">HEX / RGB / HSL converter with a matching shade palette.</div></a>
+  </div>
+
+  <h2>🧮 Calculators</h2>
+  <div class="grid">
+    <a class="tool" href="tools/emi-calculator.html"><div class="name">EMI Calculator</div><div class="desc">Loan EMI, total interest, and a year-by-year repayment table.</div></a>
+    <a class="tool" href="tools/sip-calculator.html"><div class="name">SIP Calculator</div><div class="desc">Monthly SIP growth — invested vs gains, year by year.</div></a>
+    <a class="tool" href="tools/gst-calculator.html"><div class="name">GST Calculator</div><div class="desc">Add or remove GST, with the CGST / SGST split.</div></a>
+    <a class="tool" href="tools/age-calculator.html"><div class="name">Age Calculator</div><div class="desc">Exact age in years, months, days — plus days to your next birthday.</div></a>
+    <a class="tool" href="tools/percentage-calculator.html"><div class="name">Percentage Calculator</div><div class="desc">% of a number, % change, and marks percentage.</div></a>
+    <a class="tool" href="tools/cgpa-converter.html"><div class="name">CGPA Converter</div><div class="desc">CGPA ↔ percentage (CBSE ×9.5) and semester SGPA average.</div></a>
+    <a class="tool" href="tools/unit-converter.html"><div class="name">Unit Converter</div><div class="desc">Length, weight, temperature, data, speed, area, volume.</div></a>
+  </div>
+
+  <h2>✍️ Text &amp; utility</h2>
+  <div class="grid">
+    <a class="tool" href="tools/word-counter.html"><div class="name">Word Counter</div><div class="desc">Words, characters, reading time, and your most-used words.</div></a>
+    <a class="tool" href="tools/case-converter.html"><div class="name">Case Converter</div><div class="desc">UPPER, Title, camelCase, snake_case, sort lines, remove duplicates…</div></a>
+    <a class="tool" href="tools/password-generator.html"><div class="name">Password Generator</div><div class="desc">Crypto-secure passwords + a strength checker. Nothing leaves your device.</div></a>
+    <a class="tool" href="tools/json-tools.html"><div class="name">JSON Tools</div><div class="desc">Format, minify and validate JSON, with clear error messages.</div></a>
+    <a class="tool" href="tools/base64-url-tools.html"><div class="name">Base64 / URL / Hex</div><div class="desc">Encode and decode Base64, URL and Hex — Unicode-safe.</div></a>
+    <a class="tool" href="tools/stopwatch-timer.html"><div class="name">Stopwatch + Timer</div><div class="desc">Stopwatch with laps, and a countdown timer with a beep.</div></a>
+    <a class="tool" href="tools/typing-test.html"><div class="name">Typing Test</div><div class="desc">60-second test — live WPM and accuracy.</div></a>
+  </div>
+
+  <div class="how">
+    <b>How to keep a tool forever:</b> open any tool above → save the page (Ctrl+S / browser menu → Save), or download its single <i>.html</i> file from the GitHub repo → put it on your phone or laptop → double-click it any time. It will work in 10 years, on a plane, in a village with no signal. That's the whole idea.
+  </div>
+
+  <footer>
+    Pocket Tools — free forever, no tracking, no server. Your files are processed inside your own browser and never uploaded anywhere.<br>
+    v1: 21 tools live. Roadmap: 100. Requests and contributions welcome on GitHub.
+  </footer>
+</div>
+<script>
+  var search = document.getElementById('search');
+  var tools = Array.prototype.slice.call(document.querySelectorAll('a.tool'));
+  var nores = document.getElementById('nores');
+  search.addEventListener('input', function () {
+    var q = search.value.trim().toLowerCase();
+    var visible = 0;
+    tools.forEach(function (t) {
+      var hit = !q || t.textContent.toLowerCase().indexOf(q) !== -1;
+      t.classList.toggle('hidden', !hit);
+      if (hit) visible++;
+    });
+    nores.classList.toggle('hidden', visible !== 0);
+    document.querySelectorAll('h2').forEach(function (h) {
+      var grid = h.nextElementSibling;
+      var any = Array.prototype.some.call(grid.querySelectorAll('a.tool'), function (t) { return !t.classList.contains('hidden'); });
+      h.classList.toggle('hidden', !any);
+      grid.classList.toggle('hidden', !any);
+    });
+  });
+</script>
+</body>
+</html>
