@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Word Counter — Pocket Tools</title>
+<style>
+*{box-sizing:border-box}body{margin:0;font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;background:#0b1020;color:#e8ebf5}.wrap{max-width:760px;margin:0 auto;padding:20px 16px 40px}.back{color:#9aa3bd;text-decoration:none;font-size:14px;display:inline-block;margin-bottom:14px}.back:hover{color:#e8ebf5}.card{background:#151b31;border-radius:14px;padding:22px}h1{margin:0 0 6px;font-size:26px}.desc{color:#9aa3bd;margin:0 0 18px;line-height:1.5}textarea{width:100%;min-height:180px;background:#0b1020;color:#e8ebf5;border:1px solid #2a3358;border-radius:10px;padding:12px;font:inherit;resize:vertical}textarea:focus{outline:2px solid #6c5cff;border-color:transparent}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-top:16px}.stat{background:#0b1020;border:1px solid #232b4a;border-radius:10px;padding:12px}.stat b{display:block;font-size:22px}.stat span{color:#9aa3bd;font-size:13px}h2{font-size:18px;margin:22px 0 8px}ol{margin:0;padding-left:22px;line-height:1.7;color:#e8ebf5}.muted{color:#9aa3bd}button{background:#6c5cff;color:#fff;border:0;border-radius:10px;padding:10px 14px;cursor:pointer;font:inherit;margin-top:14px}button:active{transform:translateY(1px)}
+</style>
+</head>
+<body>
+<div class="wrap">
+<a class="back" href="../index.html">← All tools</a>
+<div class="card">
+<h1>Word Counter</h1>
+<p class="desc">Count words, characters, sentences and more — live, as you type or paste.</p>
+<textarea id="input" placeholder="Type or paste your text here..." aria-label="Text to count"></textarea>
+<div class="grid">
+<div class="stat"><b id="words">0</b><span>Words</span></div>
+<div class="stat"><b id="chars">0</b><span>Characters</span></div>
+<div class="stat"><b id="charsNoSpaces">0</b><span>Characters (no spaces)</span></div>
+<div class="stat"><b id="sentences">0</b><span>Sentences</span></div>
+<div class="stat"><b id="paragraphs">0</b><span>Paragraphs</span></div>
+<div class="stat"><b id="avgLen">0</b><span>Avg word length</span></div>
+<div class="stat"><b id="readTime">0 sec</b><span>Reading time (200 wpm)</span></div>
+<div class="stat"><b id="speakTime">0 sec</b><span>Speaking time (130 wpm)</span></div>
+</div>
+<h2>Top 10 most frequent words</h2>
+<p class="muted" id="topEmpty">Words longer than 2 letters will appear here.</p>
+<ol id="topList"></ol>
+<button type="button" id="clearBtn">Clear text</button>
+</div>
+</div>
+<script>
+(function(){
+"use strict";
+var input=document.getElementById('input');
+function fmtTime(minutes){
+  if(!isFinite(minutes)||minutes<=0)return "0 sec";
+  var totalSec=Math.round(minutes*60);
+  if(totalSec<60)return totalSec+" sec";
+  var m=Math.floor(totalSec/60),s=totalSec%60;
+  return m+" min"+(s?" "+s+" sec":"");
+}
+function update(){
+  var text=input.value;
+  var chars=Array.from(text).length;
+  var charsNoSpaces=Array.from(text.replace(/\s/g,'')).length;
+  var wordMatches=text.trim()?text.trim().match(/\S+/g):null;
+  var words=wordMatches?wordMatches.length:0;
+  var sentences=0;
+  if(text.trim()){
+    sentences=text.split(/[.!?]+/).filter(function(p){return p.trim().length>0;}).length;
+  }
+  var paragraphs=0;
+  if(text.trim()){
+    paragraphs=text.split(/\n\s*\n/).filter(function(p){return p.trim().length>0;}).length;
+    if(paragraphs===0)paragraphs=1;
+  }
+  var totalWordChars=0;
+  if(wordMatches){wordMatches.forEach(function(w){totalWordChars+=Array.from(w).length;});}
+  var avg=words?(totalWordChars/words):0;
+  document.getElementById('words').textContent=words;
+  document.getElementById('chars').textContent=chars;
+  document.getElementById('charsNoSpaces').textContent=charsNoSpaces;
+  document.getElementById('sentences').textContent=sentences;
+  document.getElementById('paragraphs').textContent=paragraphs;
+  document.getElementById('avgLen').textContent=avg?avg.toFixed(1):"0";
+  document.getElementById('readTime').textContent=fmtTime(words/200);
+  document.getElementById('speakTime').textContent=fmtTime(words/130);
+  // Top words: unicode-aware tokens, lowercased, length > 2
+  var counts={},tokens=text.toLowerCase().match(/[\p{L}\p{N}']+/gu)||[];
+  tokens.forEach(function(tok){
+    tok=tok.replace(/^'+|'+$/g,'');
+    if(Array.from(tok).length>2){counts[tok]=(counts[tok]||0)+1;}
+  });
+  var sorted=Object.keys(counts).map(function(k){return [k,counts[k]];});
+  sorted.sort(function(a,b){return b[1]-a[1]||(a[0]<b[0]?-1:a[0]>b[0]?1:0);});
+  var top=sorted.slice(0,10);
+  var list=document.getElementById('topList');
+  list.innerHTML='';
+  document.getElementById('topEmpty').style.display=top.length?'none':'block';
+  top.forEach(function(pair){
+    var li=document.createElement('li');
+    li.textContent=pair[0]+' — '+pair[1];
+    list.appendChild(li);
+  });
+}
+input.addEventListener('input',update);
+document.getElementById('clearBtn').addEventListener('click',function(){input.value='';update();input.focus();});
+update();
+})();
+</script>
+</body>
+</html>

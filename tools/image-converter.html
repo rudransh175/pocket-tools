@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Image Converter — Pocket Tools</title>
+<style>
+  * { box-sizing: border-box; }
+  body { margin:0; font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; background:#0b1020; color:#e8ebf5; }
+  .wrap { max-width:760px; margin:0 auto; padding:20px 16px 48px; }
+  a.back { color:#9aa3bd; text-decoration:none; font-size:14px; }
+  a.back:hover { color:#e8ebf5; }
+  h1 { font-size:28px; margin:14px 0 6px; }
+  .desc { color:#9aa3bd; margin:0 0 20px; }
+  .card { background:#151b31; border-radius:14px; padding:20px; margin-bottom:16px; }
+  label { display:block; font-size:14px; color:#9aa3bd; margin:14px 0 6px; }
+  label:first-child { margin-top:0; }
+  input[type=file], input[type=number], select { width:100%; padding:10px; border-radius:10px; border:1px solid #2a3352; background:#0b1020; color:#e8ebf5; font-size:15px; }
+  input[type=range] { width:100%; accent-color:#6c5cff; }
+  .val { color:#e8ebf5; font-weight:600; }
+  .dl { display:inline-block; background:#6c5cff; color:#fff; padding:12px 20px; border-radius:10px; font-size:15px; font-weight:600; text-decoration:none; margin-top:14px; }
+  .stats { display:flex; gap:12px; flex-wrap:wrap; margin-top:6px; }
+  .stat { flex:1 1 140px; background:#0b1020; border-radius:10px; padding:12px; text-align:center; }
+  .stat b { display:block; font-size:19px; }
+  .stat span { font-size:12px; color:#9aa3bd; }
+  img.preview { max-width:100%; border-radius:10px; margin-top:14px; display:none; }
+  .msg { color:#9aa3bd; font-size:14px; margin-top:10px; min-height:20px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <a class="back" href="../index.html">← All tools</a>
+  <h1>Image Converter</h1>
+  <p class="desc">Convert images between PNG, JPEG and WebP, with optional resizing. Works fully offline, nothing is uploaded.</p>
+
+  <div class="card">
+    <label for="file">Choose an image</label>
+    <input type="file" id="file" accept="image/*">
+    <label for="format">Convert to</label>
+    <select id="format">
+      <option value="image/png">PNG</option>
+      <option value="image/jpeg" selected>JPEG</option>
+      <option value="image/webp">WebP</option>
+    </select>
+    <label for="quality">Quality (JPEG / WebP): <span class="val" id="qval">90</span>%</label>
+    <input type="range" id="quality" min="10" max="100" value="90">
+    <label for="width">Resize to width (px) — leave blank to keep original</label>
+    <input type="number" id="width" min="16" max="8000" placeholder="Original width">
+    <div class="msg" id="msg">Pick an image to start.</div>
+  </div>
+
+  <div class="card" id="resultCard" style="display:none">
+    <div class="stats">
+      <div class="stat"><b id="origSize">–</b><span>Original</span></div>
+      <div class="stat"><b id="newSize">–</b><span>Converted</span></div>
+      <div class="stat"><b id="dims">–</b><span>Dimensions</span></div>
+    </div>
+    <img class="preview" id="preview" alt="Converted preview">
+    <br>
+    <a class="dl" id="download" href="#" style="display:none">Download converted image</a>
+  </div>
+</div>
+
+<script>
+(function(){
+  var fileInput = document.getElementById('file');
+  var formatSel = document.getElementById('format');
+  var quality = document.getElementById('quality');
+  var qval = document.getElementById('qval');
+  var widthInput = document.getElementById('width');
+  var msg = document.getElementById('msg');
+  var resultCard = document.getElementById('resultCard');
+  var preview = document.getElementById('preview');
+  var download = document.getElementById('download');
+  var img = null, origBytes = 0, baseName = 'converted', currentURL = null;
+
+  function fmt(b){
+    if (b < 1024) return b + ' B';
+    if (b < 1024*1024) return (b/1024).toFixed(1) + ' KB';
+    return (b/(1024*1024)).toFixed(2) + ' MB';
+  }
+  function ext(type){ return type === 'image/png' ? 'png' : (type === 'image/webp' ? 'webp' : 'jpg'); }
+
+  function convert(){
+    if (!img) return;
+    var type = formatSel.value;
+    var w = img.naturalWidth, h = img.naturalHeight;
+    var wanted = parseInt(widthInput.value, 10);
+    if (wanted && wanted > 0 && wanted !== w) { h = Math.max(1, Math.round(h * wanted / w)); w = wanted; }
+    var canvas = document.createElement('canvas');
+    canvas.width = w; canvas.height = h;
+    var ctx = canvas.getContext('2d');
+    if (type === 'image/jpeg') { ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, w, h); }
+    ctx.drawImage(img, 0, 0, w, h);
+    var q = parseInt(quality.value, 10) / 100;
+    canvas.toBlob(function(blob){
+      if (!blob) { msg.textContent = 'Conversion failed — your browser may not support exporting ' + ext(type).toUpperCase() + '. Try PNG or JPEG.'; return; }
+      if (blob.type && blob.type !== type && type !== 'image/png') {
+        // Some browsers fall back to PNG silently; tell the user honestly.
+        msg.textContent = 'Note: your browser exported this as ' + blob.type.replace('image/','').toUpperCase() + ' instead. PNG/JPEG are the safest choices.';
+      } else {
+        msg.textContent = 'Converted. Download it below.';
+      }
+      if (currentURL) URL.revokeObjectURL(currentURL);
+      currentURL = URL.createObjectURL(blob);
+      preview.src = currentURL; preview.style.display = 'block';
+      download.href = currentURL;
+      download.download = baseName + '-converted.' + ext(blob.type || type);
+      download.style.display = 'inline-block';
+      document.getElementById('origSize').textContent = fmt(origBytes);
+      document.getElementById('newSize').textContent = fmt(blob.size);
+      document.getElementById('dims').textContent = w + ' × ' + h;
+      resultCard.style.display = 'block';
+    }, type, q);
+  }
+
+  fileInput.addEventListener('change', function(){
+    var f = fileInput.files && fileInput.files[0];
+    if (!f) return;
+    if (f.type.indexOf('image/') !== 0) { msg.textContent = 'That is not an image file. Please pick a JPG, PNG or WebP.'; return; }
+    origBytes = f.size;
+    baseName = f.name.replace(/\.[^.]+$/, '') || 'converted';
+    var url = URL.createObjectURL(f);
+    var tmp = new Image();
+    tmp.onload = function(){ img = tmp; msg.textContent = 'Image loaded: ' + f.name; convert(); };
+    tmp.onerror = function(){ msg.textContent = 'Could not read that image. Try another file.'; };
+    tmp.src = url;
+  });
+  formatSel.addEventListener('change', convert);
+  quality.addEventListener('input', function(){ qval.textContent = quality.value; convert(); });
+  widthInput.addEventListener('change', convert);
+})();
+</script>
+</body>
+</html>

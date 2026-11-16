@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Base64 &amp; URL Tools — Pocket Tools</title>
+<style>
+*{box-sizing:border-box}body{margin:0;font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;background:#0b1020;color:#e8ebf5}.wrap{max-width:760px;margin:0 auto;padding:20px 16px 40px}.back{color:#9aa3bd;text-decoration:none;font-size:14px;display:inline-block;margin-bottom:14px}.back:hover{color:#e8ebf5}.card{background:#151b31;border-radius:14px;padding:22px;margin-bottom:16px}h1{margin:0 0 6px;font-size:26px}h2{margin:0 0 6px;font-size:20px}.desc{color:#9aa3bd;margin:0 0 14px;line-height:1.5}textarea{width:100%;min-height:90px;background:#0b1020;color:#e8ebf5;border:1px solid #2a3358;border-radius:10px;padding:12px;font:inherit;font-size:14px;resize:vertical;word-break:break-all}textarea:focus{outline:2px solid #6c5cff;border-color:transparent}label{font-weight:600;display:block;margin:12px 0 6px}.btns{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}button{background:#6c5cff;color:#fff;border:0;border-radius:10px;padding:9px 13px;cursor:pointer;font:inherit;font-size:14px}button.secondary{background:#232b4a;color:#e8ebf5}button:active{transform:translateY(1px)}.msg{font-size:14px;min-height:20px;margin-top:8px;color:#9aa3bd}.err{color:#ffb3b3}
+</style>
+</head>
+<body>
+<div class="wrap">
+<a class="back" href="../index.html">← All tools</a>
+<div class="card">
+<h1>Base64 &amp; URL Tools</h1>
+<p class="desc">Encode and decode Base64, URLs and Hex — Unicode-safe, entirely in your browser.</p>
+</div>
+
+<div class="card" data-tool="b64">
+<h2>Base64</h2>
+<p class="desc">Works with any language and emoji — text is encoded as UTF-8 bytes first.</p>
+<label>Input</label>
+<textarea class="in" placeholder="Text or Base64 here..."></textarea>
+<div class="btns">
+<button type="button" data-act="encode">Encode →</button>
+<button type="button" data-act="decode" class="secondary">← Decode</button>
+</div>
+<label>Output</label>
+<textarea class="out" readonly placeholder="Result..."></textarea>
+<div class="btns"><button type="button" data-act="copy" class="secondary">Copy output</button></div>
+<p class="msg"></p>
+</div>
+
+<div class="card" data-tool="url">
+<h2>URL encoding</h2>
+<p class="desc">Percent-encoding for a URL component (spaces become %20, and so on).</p>
+<label>Input</label>
+<textarea class="in" placeholder="Text or encoded URL part here..."></textarea>
+<div class="btns">
+<button type="button" data-act="encode">Encode →</button>
+<button type="button" data-act="decode" class="secondary">← Decode</button>
+</div>
+<label>Output</label>
+<textarea class="out" readonly placeholder="Result..."></textarea>
+<div class="btns"><button type="button" data-act="copy" class="secondary">Copy output</button></div>
+<p class="msg"></p>
+</div>
+
+<div class="card" data-tool="hex">
+<h2>Hex</h2>
+<p class="desc">Text as hexadecimal bytes (UTF-8), and back.</p>
+<label>Input</label>
+<textarea class="in" placeholder="Text or hex (e.g. 48 65 6c 6c 6f) here..."></textarea>
+<div class="btns">
+<button type="button" data-act="encode">Encode →</button>
+<button type="button" data-act="decode" class="secondary">← Decode</button>
+</div>
+<label>Output</label>
+<textarea class="out" readonly placeholder="Result..."></textarea>
+<div class="btns"><button type="button" data-act="copy" class="secondary">Copy output</button></div>
+<p class="msg"></p>
+</div>
+</div>
+<script>
+(function(){
+"use strict";
+function bytesToBinary(bytes){
+  var CHUNK=0x8000,parts=[];
+  for(var i=0;i<bytes.length;i+=CHUNK){
+    parts.push(String.fromCharCode.apply(null,bytes.subarray(i,i+CHUNK)));
+  }
+  return parts.join('');
+}
+function b64Encode(text){
+  var bytes=new TextEncoder().encode(text);
+  return btoa(bytesToBinary(bytes));
+}
+function b64Decode(b64){
+  var clean=b64.replace(/\s+/g,'');
+  var binary=atob(clean);
+  var bytes=new Uint8Array(binary.length);
+  for(var i=0;i<binary.length;i++)bytes[i]=binary.charCodeAt(i);
+  return new TextDecoder('utf-8',{fatal:true}).decode(bytes);
+}
+function hexEncode(text){
+  var bytes=new TextEncoder().encode(text),out=[];
+  bytes.forEach(function(b){out.push(b.toString(16).padStart(2,'0'));});
+  return out.join(' ');
+}
+function hexDecode(hex){
+  var clean=hex.replace(/0x/gi,'').replace(/\s+/g,'');
+  if(clean.length%2!==0)throw new Error('Hex input must have an even number of digits.');
+  if(/[^0-9a-fA-F]/.test(clean))throw new Error('Hex input contains characters that are not hex digits.');
+  var bytes=new Uint8Array(clean.length/2);
+  for(var i=0;i<bytes.length;i++)bytes[i]=parseInt(clean.substr(i*2,2),16);
+  return new TextDecoder('utf-8',{fatal:true}).decode(bytes);
+}
+var CODECS={
+  b64:{encode:b64Encode,decode:b64Decode},
+  url:{encode:function(t){return encodeURIComponent(t);},decode:function(t){return decodeURIComponent(t.replace(/\+/g,' '));}},
+  hex:{encode:hexEncode,decode:hexDecode}
+};
+function copyText(text,el,msgEl){
+  function done(){msgEl.textContent='Copied to clipboard.';}
+  function fallback(){el.focus();el.select();try{document.execCommand('copy');done();}catch(e){msgEl.innerHTML='<span class="err">Copy failed — select the output and copy manually.</span>';}}
+  if(navigator.clipboard&&navigator.clipboard.writeText)navigator.clipboard.writeText(text).then(done,fallback);
+  else fallback();
+}
+document.querySelectorAll('[data-tool]').forEach(function(card){
+  var kind=card.getAttribute('data-tool');
+  var inEl=card.querySelector('.in'),outEl=card.querySelector('.out'),msgEl=card.querySelector('.msg');
+  card.addEventListener('click',function(e){
+    var btn=e.target.closest('button[data-act]');
+    if(!btn)return;
+    var act=btn.getAttribute('data-act');
+    if(act==='copy'){
+      if(!outEl.value){msgEl.textContent='Nothing to copy yet.';return;}
+      copyText(outEl.value,outEl,msgEl);
+      return;
+    }
+    msgEl.textContent='';
+    try{
+      outEl.value=CODECS[kind][act](inEl.value);
+    }catch(err){
+      outEl.value='';
+      msgEl.innerHTML='';
+      var span=document.createElement('span');span.className='err';
+      span.textContent=(act==='encode'?'Encode':'Decode')+' failed: '+(err&&err.message?err.message:String(err));
+      msgEl.appendChild(span);
+    }
+  });
+});
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Case Converter — Pocket Tools</title>
+<style>
+*{box-sizing:border-box}body{margin:0;font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;background:#0b1020;color:#e8ebf5}.wrap{max-width:760px;margin:0 auto;padding:20px 16px 40px}.back{color:#9aa3bd;text-decoration:none;font-size:14px;display:inline-block;margin-bottom:14px}.back:hover{color:#e8ebf5}.card{background:#151b31;border-radius:14px;padding:22px}h1{margin:0 0 6px;font-size:26px}.desc{color:#9aa3bd;margin:0 0 18px;line-height:1.5}textarea{width:100%;min-height:130px;background:#0b1020;color:#e8ebf5;border:1px solid #2a3358;border-radius:10px;padding:12px;font:inherit;resize:vertical}textarea:focus{outline:2px solid #6c5cff;border-color:transparent}label{font-weight:600;display:block;margin:14px 0 6px}.btns{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px}button{background:#6c5cff;color:#fff;border:0;border-radius:10px;padding:9px 13px;cursor:pointer;font:inherit;font-size:14px}button.secondary{background:#232b4a;color:#e8ebf5}button:active{transform:translateY(1px)}.msg{color:#9aa3bd;font-size:14px;min-height:20px;margin-top:8px}
+</style>
+</head>
+<body>
+<div class="wrap">
+<a class="back" href="../index.html">← All tools</a>
+<div class="card">
+<h1>Case Converter</h1>
+<p class="desc">Change text case, clean up spacing, sort lines and remove duplicates.</p>
+<label for="input">Your text</label>
+<textarea id="input" placeholder="Type or paste your text here..."></textarea>
+<div class="btns" id="btns">
+<button type="button" data-op="upper">UPPERCASE</button>
+<button type="button" data-op="lower">lowercase</button>
+<button type="button" data-op="title">Title Case</button>
+<button type="button" data-op="sentence">Sentence case</button>
+<button type="button" data-op="camel">camelCase</button>
+<button type="button" data-op="pascal">PascalCase</button>
+<button type="button" data-op="snake">snake_case</button>
+<button type="button" data-op="kebab">kebab-case</button>
+<button type="button" data-op="alternating">aLtErNaTiNg</button>
+<button type="button" data-op="reverse">Reverse text</button>
+<button type="button" data-op="spaces" class="secondary">Remove extra spaces</button>
+<button type="button" data-op="sort" class="secondary">Sort lines A–Z</button>
+<button type="button" data-op="dedupe" class="secondary">Remove duplicate lines</button>
+</div>
+<label for="output">Result</label>
+<textarea id="output" readonly placeholder="Result will appear here..."></textarea>
+<div class="btns">
+<button type="button" id="copyBtn">Copy result</button>
+<button type="button" id="useBtn" class="secondary">Use result as input</button>
+<button type="button" id="clearBtn" class="secondary">Clear</button>
+</div>
+<p class="msg" id="msg" role="status"></p>
+</div>
+</div>
+<script>
+(function(){
+"use strict";
+var input=document.getElementById('input'),output=document.getElementById('output'),msg=document.getElementById('msg');
+function wordParts(text){
+  var m=text.match(/[\p{L}\p{N}]+/gu);
+  return m||[];
+}
+function cap(w){return w?w.charAt(0).toUpperCase()+w.slice(1).toLowerCase():w;}
+var ops={
+  upper:function(t){return t.toUpperCase();},
+  lower:function(t){return t.toLowerCase();},
+  title:function(t){return t.toLowerCase().replace(/[\p{L}\p{N}][\p{L}\p{N}'’-]*/gu,function(w){return cap(w);});},
+  sentence:function(t){
+    var low=t.toLowerCase();
+    return low.replace(/(^\s*[\p{L}\p{N}]|[.!?]\s*[\p{L}\p{N}])/gu,function(c){return c.toUpperCase();});
+  },
+  camel:function(t){
+    var parts=wordParts(t);
+    return parts.map(function(w,i){return i===0?w.toLowerCase():cap(w);}).join('');
+  },
+  pascal:function(t){return wordParts(t).map(cap).join('');},
+  snake:function(t){return wordParts(t).map(function(w){return w.toLowerCase();}).join('_');},
+  kebab:function(t){return wordParts(t).map(function(w){return w.toLowerCase();}).join('-');},
+  alternating:function(t){
+    var out='',upper=false;
+    Array.from(t).forEach(function(ch){
+      if(/[\p{L}]/u.test(ch)){out+=upper?ch.toUpperCase():ch.toLowerCase();upper=!upper;}
+      else{out+=ch;}
+    });
+    return out;
+  },
+  reverse:function(t){return Array.from(t).reverse().join('');},
+  spaces:function(t){
+    return t.split('\n').map(function(line){return line.replace(/[ \t]+/g,' ').trim();}).join('\n').replace(/\n{3,}/g,'\n\n').trim();
+  },
+  sort:function(t){
+    if(!t)return t;
+    var trailing=t.endsWith('\n');
+    var lines=t.split('\n');
+    if(trailing)lines.pop();
+    lines.sort(function(a,b){return a.localeCompare(b);});
+    return lines.join('\n')+(trailing?'\n':'');
+  },
+  dedupe:function(t){
+    var seen={},out=[];
+    t.split('\n').forEach(function(line){if(!seen.hasOwnProperty(line)){seen[line]=1;out.push(line);}});
+    return out.join('\n');
+  }
+};
+document.getElementById('btns').addEventListener('click',function(e){
+  var btn=e.target.closest('button[data-op]');
+  if(!btn)return;
+  var op=btn.getAttribute('data-op');
+  output.value=ops[op](input.value);
+  msg.textContent='Done.';
+});
+function copyText(text,el){
+  function fallback(){
+    if(!el)return Promise.reject(new Error('no element'));
+    el.focus();el.select();
+    try{document.execCommand('copy');return Promise.resolve();}catch(err){return Promise.reject(err);}
+  }
+  if(navigator.clipboard&&navigator.clipboard.writeText){
+    return navigator.clipboard.writeText(text).catch(function(){return fallback();});
+  }
+  return fallback();
+}
+document.getElementById('copyBtn').addEventListener('click',function(){
+  if(!output.value){msg.textContent='Nothing to copy yet.';return;}
+  copyText(output.value,output).then(function(){msg.textContent='Copied to clipboard.';},function(){msg.textContent='Copy failed — select the result and copy manually.';});
+});
+document.getElementById('useBtn').addEventListener('click',function(){if(output.value){input.value=output.value;msg.textContent='Result moved to input.';}});
+document.getElementById('clearBtn').addEventListener('click',function(){input.value='';output.value='';msg.textContent='';input.focus();});
+})();
+</script>
+</body>
+</html>

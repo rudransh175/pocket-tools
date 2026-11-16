@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Stopwatch &amp; Timer — Pocket Tools</title>
+<style>
+*{box-sizing:border-box}body{margin:0;font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;background:#0b1020;color:#e8ebf5}.wrap{max-width:760px;margin:0 auto;padding:20px 16px 40px}.back{color:#9aa3bd;text-decoration:none;font-size:14px;display:inline-block;margin-bottom:14px}.back:hover{color:#e8ebf5}.card{background:#151b31;border-radius:14px;padding:22px;margin-bottom:16px}h1{margin:0 0 6px;font-size:26px}h2{margin:0 0 6px;font-size:20px}.desc{color:#9aa3bd;margin:0 0 14px;line-height:1.5}.display{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:clamp(38px,10vw,56px);text-align:center;padding:14px 6px;background:#0b1020;border:1px solid #232b4a;border-radius:12px;font-variant-numeric:tabular-nums}.btns{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px;justify-content:center}button{background:#6c5cff;color:#fff;border:0;border-radius:10px;padding:10px 16px;cursor:pointer;font:inherit}button.secondary{background:#232b4a;color:#e8ebf5}button:active{transform:translateY(1px)}ol{margin:14px 0 0;padding-left:24px;line-height:1.8;font-variant-numeric:tabular-nums}.inputs{display:flex;gap:10px;justify-content:center;flex-wrap:wrap;margin-top:6px}.inputs label{color:#9aa3bd;font-size:14px;display:flex;flex-direction:column;gap:6px;align-items:center}input[type=number]{width:110px;background:#0b1020;color:#e8ebf5;border:1px solid #2a3358;border-radius:10px;padding:10px;font:inherit;text-align:center}.bar{height:12px;background:#0b1020;border:1px solid #232b4a;border-radius:99px;overflow:hidden;margin-top:14px}.bar i{display:block;height:100%;background:#6c5cff;width:0}.msg{text-align:center;color:#9aa3bd;min-height:20px;margin-top:10px}
+</style>
+</head>
+<body>
+<div class="wrap">
+<a class="back" href="../index.html">← All tools</a>
+<div class="card">
+<h1>Stopwatch &amp; Timer</h1>
+<p class="desc">A stopwatch with laps, and a countdown timer with a beep — all in one page.</p>
+</div>
+
+<div class="card">
+<h2>Stopwatch</h2>
+<div class="display" id="swDisplay">00:00.000</div>
+<div class="btns">
+<button type="button" id="swStart">Start</button>
+<button type="button" id="swLap" class="secondary">Lap</button>
+<button type="button" id="swReset" class="secondary">Reset</button>
+</div>
+<ol id="swLaps"></ol>
+</div>
+
+<div class="card">
+<h2>Countdown timer</h2>
+<div class="inputs">
+<label>Minutes<input type="number" id="cdMin" min="0" max="999" value="5"></label>
+<label>Seconds<input type="number" id="cdSec" min="0" max="59" value="0"></label>
+</div>
+<div class="display" id="cdDisplay" style="margin-top:14px">05:00.000</div>
+<div class="bar"><i id="cdBar"></i></div>
+<div class="btns">
+<button type="button" id="cdStart">Start</button>
+<button type="button" id="cdReset" class="secondary">Reset</button>
+</div>
+<p class="msg" id="cdMsg"></p>
+</div>
+</div>
+<script>
+(function(){
+"use strict";
+var BASE_TITLE=document.title;
+function fmt(ms){
+  if(ms<0)ms=0;
+  var m=Math.floor(ms/60000),s=Math.floor(ms%60000/1000),mmm=Math.floor(ms%1000);
+  return String(m).padStart(2,'0')+':'+String(s).padStart(2,'0')+'.'+String(mmm).padStart(3,'0');
+}
+/* ---------- Stopwatch ---------- */
+var swElapsed=0,swStartAt=0,swRunning=false,swTimer=null,swLastLap=0,swLapCount=0;
+var swDisplay=document.getElementById('swDisplay'),swStartBtn=document.getElementById('swStart');
+function swNow(){return swElapsed+(swRunning?Date.now()-swStartAt:0);}
+function swRender(){swDisplay.textContent=fmt(swNow());}
+function swTick(){swRender();}
+swStartBtn.addEventListener('click',function(){
+  if(swRunning){
+    swElapsed=swNow();swRunning=false;
+    clearInterval(swTimer);swTimer=null;
+    swStartBtn.textContent='Resume';swRender();
+  }else{
+    swRunning=true;swStartAt=Date.now();
+    swTimer=setInterval(swTick,31);
+    swStartBtn.textContent='Pause';swRender();
+  }
+});
+document.getElementById('swLap').addEventListener('click',function(){
+  var total=swNow();
+  if(total===0&&!swRunning)return;
+  swLapCount++;
+  var li=document.createElement('li');
+  li.textContent='Lap '+swLapCount+': '+fmt(total-swLastLap)+'  (total '+fmt(total)+')';
+  document.getElementById('swLaps').appendChild(li);
+  swLastLap=total;
+});
+document.getElementById('swReset').addEventListener('click',function(){
+  swRunning=false;clearInterval(swTimer);swTimer=null;
+  swElapsed=0;swLastLap=0;swLapCount=0;
+  swStartBtn.textContent='Start';
+  document.getElementById('swLaps').innerHTML='';
+  swRender();
+});
+swRender();
+/* ---------- Countdown ---------- */
+var cdTotal=0,cdRemaining=0,cdEndAt=0,cdRunning=false,cdTimer=null,audioCtx=null;
+var cdDisplay=document.getElementById('cdDisplay'),cdBar=document.getElementById('cdBar'),
+    cdStartBtn=document.getElementById('cdStart'),cdMsg=document.getElementById('cdMsg');
+function cdReadInputs(){
+  var m=parseInt(document.getElementById('cdMin').value,10);
+  var s=parseInt(document.getElementById('cdSec').value,10);
+  if(isNaN(m)||m<0)m=0; if(m>999)m=999;
+  if(isNaN(s)||s<0)s=0; if(s>59)s=59;
+  return (m*60+s)*1000;
+}
+function cdRender(){
+  cdDisplay.textContent=fmt(cdRemaining);
+  var pct=cdTotal>0?((cdTotal-cdRemaining)/cdTotal)*100:0;
+  cdBar.style.width=Math.max(0,Math.min(100,pct))+'%';
+  if(cdRunning||cdRemaining>0&&cdRemaining<cdTotal){
+    document.title=fmt(cdRemaining)+' — Timer';
+  }
+}
+function beep(){
+  try{
+    if(!audioCtx)audioCtx=new (window.AudioContext||window.webkitAudioContext)();
+    if(audioCtx.state==='suspended')audioCtx.resume();
+    [0,0.35,0.7].forEach(function(offset){
+      var osc=audioCtx.createOscillator(),gain=audioCtx.createGain();
+      var t=audioCtx.currentTime+offset;
+      osc.type='sine';osc.frequency.value=880;
+      gain.gain.setValueAtTime(0.0001,t);
+      gain.gain.exponentialRampToValueAtTime(0.25,t+0.02);
+      gain.gain.exponentialRampToValueAtTime(0.0001,t+0.28);
+      osc.connect(gain);gain.connect(audioCtx.destination);
+      osc.start(t);osc.stop(t+0.3);
+    });
+  }catch(e){/* audio not available — the visual finish message still shows */}
+}
+function cdFinish(){
+  cdRunning=false;clearInterval(cdTimer);cdTimer=null;
+  cdRemaining=0;cdRender();
+  cdStartBtn.textContent='Start';
+  cdMsg.textContent='Time is up!';
+  document.title='⏰ Time is up! — '+BASE_TITLE;
+  beep();
+}
+function cdTick(){
+  cdRemaining=cdEndAt-Date.now();
+  if(cdRemaining<=0){cdFinish();return;}
+  cdRender();
+}
+cdStartBtn.addEventListener('click',function(){
+  if(cdRunning){
+    cdRemaining=Math.max(0,cdEndAt-Date.now());
+    cdRunning=false;clearInterval(cdTimer);cdTimer=null;
+    cdStartBtn.textContent='Resume';cdRender();
+    document.title=BASE_TITLE;
+    return;
+  }
+  if(cdRemaining<=0){
+    cdTotal=cdReadInputs();cdRemaining=cdTotal;
+    if(cdTotal<=0){cdMsg.textContent='Set a time above zero first.';cdRender();return;}
+  }
+  // Creating/resuming the AudioContext inside this click is the user gesture browsers require.
+  try{
+    if(!audioCtx)audioCtx=new (window.AudioContext||window.webkitAudioContext)();
+    if(audioCtx.state==='suspended')audioCtx.resume();
+  }catch(e){}
+  cdMsg.textContent='';
+  cdRunning=true;cdEndAt=Date.now()+cdRemaining;
+  cdTimer=setInterval(cdTick,31);
+  cdStartBtn.textContent='Pause';cdRender();
+});
+document.getElementById('cdReset').addEventListener('click',function(){
+  cdRunning=false;clearInterval(cdTimer);cdTimer=null;
+  cdTotal=cdReadInputs();cdRemaining=cdTotal;
+  cdStartBtn.textContent='Start';cdMsg.textContent='';
+  document.title=BASE_TITLE;
+  cdRender();
+});
+['cdMin','cdSec'].forEach(function(id){
+  document.getElementById(id).addEventListener('change',function(){
+    if(!cdRunning){cdTotal=cdReadInputs();cdRemaining=cdTotal;cdRender();}
+  });
+});
+cdTotal=cdReadInputs();cdRemaining=cdTotal;cdRender();
+document.title=BASE_TITLE;
+})();
+</script>
+</body>
+</html>

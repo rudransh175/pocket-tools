@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CGPA Converter — Pocket Tools</title>
+<style>
+*{box-sizing:border-box}body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;background:#0b1020;color:#e8ebf5}
+.wrap{max-width:760px;margin:0 auto;padding:20px 16px 48px}
+a.back{color:#9aa3bd;text-decoration:none;font-size:14px}
+h1{margin:10px 0 4px;font-size:28px}.desc{color:#9aa3bd;margin:0 0 8px}
+.card{background:#151b31;border-radius:14px;padding:20px;margin-top:16px}
+h2{font-size:17px;margin:0 0 4px}
+label{display:block;color:#9aa3bd;font-size:14px;margin:12px 0 6px}
+input,select{width:100%;padding:11px 12px;border-radius:10px;border:1px solid #2a3352;background:#0b1020;color:#e8ebf5;font-size:16px}
+.res{font-size:22px;font-weight:700;margin-top:14px;color:#a99dff}
+.muted{color:#9aa3bd;font-size:14px}
+</style>
+</head>
+<body>
+<div class="wrap">
+<a class="back" href="../index.html">← All tools</a>
+<h1>CGPA Converter</h1>
+<p class="desc">CGPA ↔ percentage using the CBSE × 9.5 formula, plus a quick semester SGPA average.</p>
+
+<div class="card">
+  <h2>CGPA → Percentage</h2>
+  <label for="scale">Scale</label>
+  <select id="scale">
+    <option value="10" selected>10-point scale (CBSE formula × 9.5)</option>
+  </select>
+  <label for="cgpa">CGPA</label>
+  <input id="cgpa" type="number" min="0" max="10" step="0.01" value="9.2" inputmode="decimal">
+  <div class="res" id="cgpaOut">—</div>
+  <p class="muted">Formula (CBSE): Percentage = CGPA × 9.5. Some universities use a different multiplier — check your institution's rule if this is for an official form.</p>
+</div>
+
+<div class="card">
+  <h2>Percentage → CGPA</h2>
+  <label for="pct">Percentage (%)</label>
+  <input id="pct" type="number" min="0" max="100" step="0.01" value="87.4" inputmode="decimal">
+  <div class="res" id="pctOut">—</div>
+  <p class="muted">Reverse of the same formula: CGPA = Percentage ÷ 9.5.</p>
+</div>
+
+<div class="card">
+  <h2>Semester SGPA average → CGPA</h2>
+  <label for="sgpas">SGPAs, separated by commas (e.g. 8.5, 9.0, 8.8, 9.2)</label>
+  <input id="sgpas" type="text" value="8.5, 9.0, 8.8" inputmode="decimal">
+  <div class="res" id="avgOut">—</div>
+  <p class="muted">Simple average of the SGPAs you enter (equal weight per semester). Percentage shown uses × 9.5.</p>
+</div>
+</div>
+
+<script>
+var $=function(id){return document.getElementById(id)};
+function fmt(n){return n.toLocaleString('en-IN',{maximumFractionDigits:2})}
+var MULT=9.5; // 10-point scale: percentage = CGPA * 9.5 (CBSE)
+function calcCgpa(){
+  var c=parseFloat($('cgpa').value);
+  if(isNaN(c)||c<0||c>10){ $('cgpaOut').textContent='— (enter a CGPA between 0 and 10)'; return; }
+  $('cgpaOut').textContent='Percentage = '+fmt(c*MULT)+' %';
+}
+function calcPct(){
+  var p=parseFloat($('pct').value);
+  if(isNaN(p)||p<0||p>100){ $('pctOut').textContent='— (enter a percentage between 0 and 100)'; return; }
+  $('pctOut').textContent='CGPA = '+fmt(p/MULT);
+}
+function calcAvg(){
+  var parts=$('sgpas').value.split(',').map(function(s){return parseFloat(s.trim())}).filter(function(v){return !isNaN(v)&&v>=0&&v<=10});
+  if(!parts.length){ $('avgOut').textContent='— (enter at least one valid SGPA)'; return; }
+  var avg=parts.reduce(function(a,b){return a+b},0)/parts.length;
+  $('avgOut').textContent='CGPA (avg of '+parts.length+') = '+fmt(avg)+'  →  '+fmt(avg*MULT)+' %';
+}
+$('cgpa').addEventListener('input',calcCgpa);
+$('pct').addEventListener('input',calcPct);
+$('sgpas').addEventListener('input',calcAvg);
+$('scale').addEventListener('change',function(){ calcCgpa(); calcPct(); calcAvg(); });
+calcCgpa(); calcPct(); calcAvg();
+</script>
+</body>
+</html>

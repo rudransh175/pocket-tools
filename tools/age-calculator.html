@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Age Calculator — Pocket Tools</title>
+<style>
+*{box-sizing:border-box}body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;background:#0b1020;color:#e8ebf5}
+.wrap{max-width:760px;margin:0 auto;padding:20px 16px 48px}
+a.back{color:#9aa3bd;text-decoration:none;font-size:14px}
+h1{margin:10px 0 4px;font-size:28px}.desc{color:#9aa3bd;margin:0 0 8px}
+.card{background:#151b31;border-radius:14px;padding:20px;margin-top:16px}
+label{display:block;color:#9aa3bd;font-size:14px;margin:14px 0 6px}label:first-child{margin-top:0}
+input{width:100%;padding:11px 12px;border-radius:10px;border:1px solid #2a3352;background:#0b1020;color:#e8ebf5;font-size:16px;color-scheme:dark}
+.row{display:grid;grid-template-columns:1fr 1fr;gap:12px}@media(max-width:560px){.row{grid-template-columns:1fr}}
+.big{font-size:26px;font-weight:700;margin:4px 0;line-height:1.35}
+.muted{color:#9aa3bd;font-size:14px}
+.stat{display:flex;justify-content:space-between;padding:9px 0;border-bottom:1px solid #232b47}.stat:last-child{border-bottom:0}
+.err{color:#ff8a8a}
+</style>
+</head>
+<body>
+<div class="wrap">
+<a class="back" href="../index.html">← All tools</a>
+<h1>Age Calculator</h1>
+<p class="desc">Exact age in years, months and days — plus total days lived and your next birthday.</p>
+
+<div class="card">
+  <div class="row">
+    <div>
+      <label for="dob">Date of birth</label>
+      <input id="dob" type="date">
+    </div>
+    <div>
+      <label for="asof">Age as of</label>
+      <input id="asof" type="date">
+    </div>
+  </div>
+</div>
+
+<div class="card">
+  <div class="muted">Your exact age</div>
+  <div class="big" id="age">Pick your date of birth above.</div>
+  <div class="stat"><span class="muted">Total days</span><span id="days">—</span></div>
+  <div class="stat"><span class="muted">Total weeks</span><span id="weeks">—</span></div>
+  <div class="stat"><span class="muted">Next birthday</span><span id="nextb">—</span></div>
+  <div class="stat"><span class="muted">Days to next birthday</span><span id="tob">—</span></div>
+</div>
+</div>
+
+<script>
+var $=function(id){return document.getElementById(id)};
+function parseDate(v){ if(!v) return null; var p=v.split('-'); return new Date(+p[0],+p[1]-1,+p[2]); }
+function fmtDate(d){ return d.toLocaleDateString('en-IN',{weekday:'short',day:'numeric',month:'short',year:'numeric'}); }
+function todayStr(){ var t=new Date(); var m=('0'+(t.getMonth()+1)).slice(-2), d=('0'+t.getDate()).slice(-2); return t.getFullYear()+'-'+m+'-'+d; }
+$('asof').value=todayStr();
+
+function calc(){
+  var dob=parseDate($('dob').value), asof=parseDate($('asof').value);
+  if(!dob||!asof){ $('age').textContent='Pick your date of birth above.'; return; }
+  if(dob>asof){
+    $('age').innerHTML='<span class="err" style="font-size:18px">Date of birth is after the “as of” date.</span>';
+    $('days').textContent=$('weeks').textContent=$('nextb').textContent=$('tob').textContent='—'; return;
+  }
+  // Exact years / months / days
+  var y=asof.getFullYear()-dob.getFullYear();
+  var m=asof.getMonth()-dob.getMonth();
+  var d=asof.getDate()-dob.getDate();
+  if(d<0){
+    m--;
+    var prev=new Date(asof.getFullYear(), asof.getMonth(), 0); // last day of previous month
+    d+=prev.getDate();
+  }
+  if(m<0){ y--; m+=12; }
+  $('age').textContent=y+' years, '+m+' months, '+d+' days';
+
+  var totalDays=Math.floor((asof-dob)/86400000);
+  $('days').textContent=totalDays.toLocaleString('en-IN');
+  $('weeks').textContent=Math.floor(totalDays/7).toLocaleString('en-IN')+' weeks, '+(totalDays%7)+' days';
+
+  // Next birthday (today counts if today IS the birthday)
+  var next=new Date(asof.getFullYear(), dob.getMonth(), dob.getDate());
+  if(next<asof) next=new Date(asof.getFullYear()+1, dob.getMonth(), dob.getDate());
+  var to=Math.round((next-asof)/86400000);
+  $('nextb').textContent=fmtDate(next)+(to===0?' — today! Happy birthday!':'');
+  $('tob').textContent=to.toLocaleString('en-IN');
+}
+['dob','asof'].forEach(function(id){ $(id).addEventListener('input',calc); $(id).addEventListener('change',calc); });
+calc();
+</script>
+</body>
+</html>

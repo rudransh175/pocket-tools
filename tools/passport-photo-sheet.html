@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Passport Photo Sheet — Pocket Tools</title>
+<style>
+  * { box-sizing: border-box; }
+  body { margin:0; font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; background:#0b1020; color:#e8ebf5; }
+  .wrap { max-width:760px; margin:0 auto; padding:20px 16px 48px; }
+  a.back { color:#9aa3bd; text-decoration:none; font-size:14px; }
+  a.back:hover { color:#e8ebf5; }
+  h1 { font-size:28px; margin:14px 0 6px; }
+  .desc { color:#9aa3bd; margin:0 0 20px; }
+  .card { background:#151b31; border-radius:14px; padding:20px; margin-bottom:16px; }
+  label { display:block; font-size:14px; color:#9aa3bd; margin:14px 0 6px; }
+  label:first-child { margin-top:0; }
+  input[type=file], select { width:100%; padding:10px; border-radius:10px; border:1px solid #2a3352; background:#0b1020; color:#e8ebf5; font-size:15px; }
+  button { background:#6c5cff; color:#fff; border:none; padding:12px 20px; border-radius:10px; font-size:15px; font-weight:600; cursor:pointer; margin-top:14px; }
+  canvas.sheet { width:100%; max-width:420px; display:none; margin:14px auto 0; border-radius:6px; background:#fff; }
+  .msg { color:#9aa3bd; font-size:14px; margin-top:10px; min-height:20px; }
+  .center { text-align:center; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <a class="back" href="../index.html">← All tools</a>
+  <h1>Passport Photo Sheet</h1>
+  <p class="desc">Turn one photo into a printable 4×6 inch sheet with 8 passport-size copies (35×45 mm ratio) — ready to print and cut. Works fully offline.</p>
+
+  <div class="card">
+    <label for="file">Upload your photo</label>
+    <input type="file" id="file" accept="image/*">
+    <label for="format">Download format</label>
+    <select id="format">
+      <option value="image/png">PNG (best quality)</option>
+      <option value="image/jpeg">JPEG (smaller file)</option>
+    </select>
+    <div class="msg" id="msg">Pick a clear, front-facing photo to start. It will be centre-cropped to the passport ratio.</div>
+    <div class="center">
+      <canvas class="sheet" id="sheet" width="1200" height="1800"></canvas>
+      <br>
+      <button id="download" style="display:none">Download print sheet</button>
+    </div>
+  </div>
+</div>
+
+<script>
+(function(){
+  var fileInput = document.getElementById('file');
+  var formatSel = document.getElementById('format');
+  var msg = document.getElementById('msg');
+  var sheet = document.getElementById('sheet');
+  var downloadBtn = document.getElementById('download');
+  var img = null;
+
+  var SW = 1200, SH = 1800;         // 4x6 inch at 300 dpi
+  var RATIO = 35 / 45;              // passport width : height
+  var COLS = 2, ROWS = 4, GAP = 36, MARGIN = 48;
+
+  function draw(){
+    if (!img) return;
+    var ctx = sheet.getContext('2d');
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, SW, SH);
+
+    // Cell size: fit COLS x ROWS inside margins, each copy keeps the 35:45 ratio.
+    var availW = SW - MARGIN*2 - GAP*(COLS-1);
+    var availH = SH - MARGIN*2 - GAP*(ROWS-1);
+    var copyH = Math.min(availH / ROWS, (availW / COLS) / RATIO);
+    var copyW = copyH * RATIO;
+    var gridW = copyW*COLS + GAP*(COLS-1);
+    var gridH = copyH*ROWS + GAP*(ROWS-1);
+    var startX = (SW - gridW) / 2;
+    var startY = (SH - gridH) / 2;
+
+    // Source cover-crop rectangle for the 35:45 ratio.
+    var srcRatio = img.naturalWidth / img.naturalHeight;
+    var sx, sy, sw, sh;
+    if (srcRatio > RATIO) { sh = img.naturalHeight; sw = sh * RATIO; sx = (img.naturalWidth - sw)/2; sy = 0; }
+    else { sw = img.naturalWidth; sh = sw / RATIO; sx = 0; sy = (img.naturalHeight - sh)/2; }
+
+    for (var r = 0; r < ROWS; r++){
+      for (var c = 0; c < COLS; c++){
+        var x = startX + c*(copyW+GAP);
+        var y = startY + r*(copyH+GAP);
+        ctx.drawImage(img, sx, sy, sw, sh, x, y, copyW, copyH);
+        ctx.strokeStyle = '#c9ced6';
+        ctx.lineWidth = 2;
+        ctx.setLineDash([10, 8]);
+        ctx.strokeRect(x, y, copyW, copyH);
+        ctx.setLineDash([]);
+      }
+    }
+    sheet.style.display = 'block';
+    downloadBtn.style.display = 'inline-block';
+    msg.textContent = 'Sheet ready — 8 copies. Print at 100% size (no "fit to page") on 4×6 photo paper.';
+  }
+
+  fileInput.addEventListener('change', function(){
+    var f = fileInput.files && fileInput.files[0];
+    if (!f) return;
+    if (f.type.indexOf('image/') !== 0) { msg.textContent = 'That is not an image file. Please pick a JPG or PNG.'; return; }
+    var url = URL.createObjectURL(f);
+    var tmp = new Image();
+    tmp.onload = function(){ img = tmp; draw(); };
+    tmp.onerror = function(){ msg.textContent = 'Could not read that image. Try another file.'; };
+    tmp.src = url;
+  });
+
+  downloadBtn.addEventListener('click', function(){
+    if (!img) return;
+    var type = formatSel.value;
+    sheet.toBlob(function(blob){
+      if (!blob) { msg.textContent = 'Sorry, download failed. Try the other format.'; return; }
+      var a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = type === 'image/png' ? 'passport-sheet.png' : 'passport-sheet.jpg';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      setTimeout(function(){ URL.revokeObjectURL(a.href); }, 2000);
+    }, type, 0.95);
+  });
+})();
+</script>
+</body>
+</html>

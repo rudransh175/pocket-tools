@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Signature Pad — Pocket Tools</title>
+<style>
+  * { box-sizing: border-box; }
+  body { margin:0; font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; background:#0b1020; color:#e8ebf5; }
+  .wrap { max-width:760px; margin:0 auto; padding:20px 16px 48px; }
+  a.back { color:#9aa3bd; text-decoration:none; font-size:14px; }
+  a.back:hover { color:#e8ebf5; }
+  h1 { font-size:28px; margin:14px 0 6px; }
+  .desc { color:#9aa3bd; margin:0 0 20px; }
+  .card { background:#151b31; border-radius:14px; padding:20px; margin-bottom:16px; }
+  label { display:block; font-size:14px; color:#9aa3bd; margin:14px 0 6px; }
+  label:first-child { margin-top:0; }
+  input[type=color] { width:64px; height:40px; border:1px solid #2a3352; border-radius:10px; background:#0b1020; padding:4px; cursor:pointer; }
+  input[type=range] { width:100%; accent-color:#6c5cff; }
+  select { width:100%; padding:10px; border-radius:10px; border:1px solid #2a3352; background:#0b1020; color:#e8ebf5; font-size:15px; }
+  .val { color:#e8ebf5; font-weight:600; }
+  .row { display:flex; gap:16px; flex-wrap:wrap; align-items:end; }
+  .row > div { flex:1 1 160px; }
+  button { background:#6c5cff; color:#fff; border:none; padding:12px 20px; border-radius:10px; font-size:15px; font-weight:600; cursor:pointer; margin-top:14px; }
+  button.secondary { background:#2a3352; }
+  canvas.pad { width:100%; height:280px; display:block; border-radius:10px; border:2px dashed #2a3352; background:#ffffff; touch-action:none; cursor:crosshair; margin-top:14px; }
+  canvas.pad.transparent { background: repeating-conic-gradient(#d8dce6 0% 25%, #ffffff 0% 50%) 0 0 / 24px 24px; }
+  .msg { color:#9aa3bd; font-size:14px; margin-top:10px; min-height:20px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <a class="back" href="../index.html">← All tools</a>
+  <h1>Signature Pad</h1>
+  <p class="desc">Draw your signature with mouse, finger or stylus, then download it as a PNG. Works fully offline — your signature never leaves your device.</p>
+
+  <div class="card">
+    <div class="row">
+      <div>
+        <label for="color">Pen colour</label>
+        <input type="color" id="color" value="#1a1a8c">
+      </div>
+      <div>
+        <label for="thick">Pen thickness: <span class="val" id="tval">3</span> px</label>
+        <input type="range" id="thick" min="1" max="10" value="3">
+      </div>
+      <div>
+        <label for="bg">Background</label>
+        <select id="bg">
+          <option value="white">White</option>
+          <option value="transparent">Transparent</option>
+        </select>
+      </div>
+    </div>
+    <canvas class="pad" id="pad" width="900" height="340"></canvas>
+    <div class="msg" id="msg">Draw inside the box above.</div>
+    <button class="secondary" id="clear">Clear</button>
+    <button id="download">Download PNG</button>
+  </div>
+</div>
+
+<script>
+(function(){
+  var pad = document.getElementById('pad');
+  var ctx = pad.getContext('2d');
+  var colorInput = document.getElementById('color');
+  var thickInput = document.getElementById('thick');
+  var tval = document.getElementById('tval');
+  var bgSel = document.getElementById('bg');
+  var msg = document.getElementById('msg');
+  var strokes = [];      // [{color, width, points:[{x,y}, ...]}]
+  var current = null;
+
+  function redraw(){
+    ctx.clearRect(0, 0, pad.width, pad.height);
+    if (bgSel.value === 'white') { ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, pad.width, pad.height); }
+    ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+    for (var s = 0; s < strokes.length; s++){
+      var st = strokes[s];
+      ctx.strokeStyle = st.color; ctx.lineWidth = st.width;
+      ctx.beginPath();
+      for (var i = 0; i < st.points.length; i++){
+        var p = st.points[i];
+        if (i === 0) ctx.moveTo(p.x, p.y); else ctx.lineTo(p.x, p.y);
+      }
+      if (st.points.length === 1) ctx.lineTo(st.points[0].x + 0.1, st.points[0].y + 0.1);
+      ctx.stroke();
+    }
+  }
+
+  function pos(e){
+    var r = pad.getBoundingClientRect();
+    return { x: (e.clientX - r.left) * pad.width / r.width, y: (e.clientY - r.top) * pad.height / r.height };
+  }
+
+  pad.addEventListener('pointerdown', function(e){
+    e.preventDefault();
+    try { pad.setPointerCapture(e.pointerId); } catch (err) {}
+    current = { color: colorInput.value, width: parseInt(thickInput.value, 10), points: [pos(e)] };
+    strokes.push(current);
+    redraw();
+  });
+  pad.addEventListener('pointermove', function(e){
+    if (!current) return;
+    e.preventDefault();
+    current.points.push(pos(e));
+    redraw();
+  });
+  function endStroke(){ current = null; }
+  pad.addEventListener('pointerup', endStroke);
+  pad.addEventListener('pointercancel', endStroke);
+
+  document.getElementById('clear').addEventListener('click', function(){
+    strokes = []; current = null; redraw();
+    msg.textContent = 'Cleared. Draw your signature again.';
+  });
+  thickInput.addEventListener('input', function(){ tval.textContent = thickInput.value; });
+  bgSel.addEventListener('change', function(){
+    pad.classList.toggle('transparent', bgSel.value === 'transparent');
+    redraw();
+  });
+
+  document.getElementById('download').addEventListener('click', function(){
+    if (!strokes.length) { msg.textContent = 'Draw something first — the pad is empty.'; return; }
+    var out = document.createElement('canvas');
+    out.width = pad.width; out.height = pad.height;
+    var octx = out.getContext('2d');
+    if (bgSel.value === 'white') { octx.fillStyle = '#ffffff'; octx.fillRect(0, 0, out.width, out.height); }
+    octx.drawImage(pad, 0, 0);
+    // pad already includes bg when white; when transparent it is clear except strokes. Redraw strokes cleanly:
+    if (bgSel.value === 'transparent') {
+      octx.clearRect(0, 0, out.width, out.height);
+      octx.lineCap = 'round'; octx.lineJoin = 'round';
+      for (var s = 0; s < strokes.length; s++){
+        var st = strokes[s];
+        octx.strokeStyle = st.color; octx.lineWidth = st.width;
+        octx.beginPath();
+        for (var i = 0; i < st.points.length; i++){
+          var p = st.points[i];
+          if (i === 0) octx.moveTo(p.x, p.y); else octx.lineTo(p.x, p.y);
+        }
+        if (st.points.length === 1) octx.lineTo(st.points[0].x + 0.1, st.points[0].y + 0.1);
+        octx.stroke();
+      }
+    }
+    out.toBlob(function(blob){
+      if (!blob) { msg.textContent = 'Sorry, download failed. Try again.'; return; }
+      var a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = 'signature.png';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      setTimeout(function(){ URL.revokeObjectURL(a.href); }, 2000);
+      msg.textContent = 'Signature downloaded as PNG.';
+    }, 'image/png');
+  });
+
+  redraw();
+})();
+</script>
+</body>
+</html>

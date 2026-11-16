@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>EMI Calculator — Pocket Tools</title>
+<style>
+*{box-sizing:border-box}body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;background:#0b1020;color:#e8ebf5}
+.wrap{max-width:760px;margin:0 auto;padding:20px 16px 48px}
+a.back{color:#9aa3bd;text-decoration:none;font-size:14px}
+h1{margin:10px 0 4px;font-size:28px}.desc{color:#9aa3bd;margin:0 0 8px}
+.card{background:#151b31;border-radius:14px;padding:20px;margin-top:16px}
+label{display:block;color:#9aa3bd;font-size:14px;margin:14px 0 6px}label:first-child{margin-top:0}
+input,select{width:100%;padding:11px 12px;border-radius:10px;border:1px solid #2a3352;background:#0b1020;color:#e8ebf5;font-size:16px}
+.row{display:grid;grid-template-columns:1fr 1fr;gap:12px}@media(max-width:560px){.row{grid-template-columns:1fr}}
+.big{font-size:30px;font-weight:700;margin:4px 0}
+.muted{color:#9aa3bd;font-size:14px}
+.stat{display:flex;justify-content:space-between;padding:9px 0;border-bottom:1px solid #232b47}.stat:last-child{border-bottom:0}
+table{width:100%;border-collapse:collapse;margin-top:8px;font-size:14px}
+th,td{padding:8px 6px;border-bottom:1px solid #232b47;text-align:right}th{color:#9aa3bd;font-weight:600}
+th:first-child,td:first-child{text-align:left}
+.err{color:#ff8a8a}
+</style>
+</head>
+<body>
+<div class="wrap">
+<a class="back" href="../index.html">← All tools</a>
+<h1>EMI Calculator</h1>
+<p class="desc">Monthly loan EMI, total interest, and a year-wise repayment summary.</p>
+
+<div class="card">
+  <label for="amount">Loan amount (₹)</label>
+  <input id="amount" type="number" min="0" value="500000" inputmode="decimal">
+  <div class="row">
+    <div>
+      <label for="rate">Annual interest rate (%)</label>
+      <input id="rate" type="number" min="0" step="0.01" value="9" inputmode="decimal">
+    </div>
+    <div>
+      <label for="tenure">Tenure</label>
+      <div class="row" style="grid-template-columns:2fr 1fr;gap:8px">
+        <input id="tenure" type="number" min="1" value="5" inputmode="numeric">
+        <select id="unit"><option value="years" selected>Years</option><option value="months">Months</option></select>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="card" id="out">
+  <div class="muted">Monthly EMI</div>
+  <div class="big" id="emi">—</div>
+  <div class="stat"><span class="muted">Total payment</span><span id="totalPay">—</span></div>
+  <div class="stat"><span class="muted">Total interest</span><span id="totalInt">—</span></div>
+  <div class="stat"><span class="muted">Principal</span><span id="prin">—</span></div>
+</div>
+
+<div class="card">
+  <div class="muted" style="margin-bottom:4px">Year-wise summary</div>
+  <div style="overflow-x:auto"><table>
+    <thead><tr><th>Year</th><th>Principal paid</th><th>Interest paid</th><th>Balance left</th></tr></thead>
+    <tbody id="tbody"><tr><td colspan="4" class="muted">Enter values above.</td></tr></tbody>
+  </table></div>
+</div>
+</div>
+
+<script>
+var $=function(id){return document.getElementById(id)};
+function inr(n,d){return '₹'+n.toLocaleString('en-IN',{minimumFractionDigits:d||0,maximumFractionDigits:d||0})}
+function calc(){
+  var P=parseFloat($('amount').value), annual=parseFloat($('rate').value),
+      t=parseFloat($('tenure').value), unit=$('unit').value;
+  if(!(P>0)||!(annual>=0)||!(t>0)){
+    $('emi').innerHTML='<span class="err" style="font-size:18px">Enter a valid amount, rate and tenure.</span>';
+    $('totalPay').textContent=$('totalInt').textContent=$('prin').textContent='—';
+    $('tbody').innerHTML='<tr><td colspan="4" class="muted">—</td></tr>'; return;
+  }
+  var n = unit==='years' ? Math.round(t*12) : Math.round(t);
+  if(n<1){ $('emi').textContent='—'; return; }
+  var r = annual/12/100, emi;
+  if(r===0){ emi = P/n; } else { var f=Math.pow(1+r,n); emi = P*r*f/(f-1); }
+  // Month-by-month schedule, grouped by year
+  var bal=P, rows='', yPrin=0, yInt=0, totInt=0;
+  for(var m=1;m<=n;m++){
+    var interest=bal*r, principal=emi-interest;
+    if(m===n){ principal=bal; } // clear rounding residue in final month
+    bal-=(principal); if(bal<0.005) bal=0;
+    yPrin+=principal; yInt+=interest; totInt+=interest;
+    if(m%12===0||m===n){
+      var yr=Math.ceil(m/12);
+      rows+='<tr><td>'+yr+'</td><td>'+inr(yPrin)+'</td><td>'+inr(yInt)+'</td><td>'+inr(bal)+'</td></tr>';
+      yPrin=0; yInt=0;
+    }
+  }
+  $('emi').textContent=inr(emi);
+  $('totalPay').textContent=inr(P+totInt);
+  $('totalInt').textContent=inr(totInt);
+  $('prin').textContent=inr(P);
+  $('tbody').innerHTML=rows;
+}
+['amount','rate','tenure','unit'].forEach(function(id){ $(id).addEventListener('input',calc); $(id).addEventListener('change',calc); });
+calc();
+</script>
+</body>
+</html>

@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SIP Calculator — Pocket Tools</title>
+<style>
+*{box-sizing:border-box}body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;background:#0b1020;color:#e8ebf5}
+.wrap{max-width:760px;margin:0 auto;padding:20px 16px 48px}
+a.back{color:#9aa3bd;text-decoration:none;font-size:14px}
+h1{margin:10px 0 4px;font-size:28px}.desc{color:#9aa3bd;margin:0 0 8px}
+.card{background:#151b31;border-radius:14px;padding:20px;margin-top:16px}
+label{display:block;color:#9aa3bd;font-size:14px;margin:14px 0 6px}label:first-child{margin-top:0}
+input{width:100%;padding:11px 12px;border-radius:10px;border:1px solid #2a3352;background:#0b1020;color:#e8ebf5;font-size:16px}
+.row{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px}@media(max-width:560px){.row{grid-template-columns:1fr}}
+.big{font-size:30px;font-weight:700;margin:4px 0}
+.muted{color:#9aa3bd;font-size:14px}
+.stat{display:flex;justify-content:space-between;padding:9px 0;border-bottom:1px solid #232b47}.stat:last-child{border-bottom:0}
+table{width:100%;border-collapse:collapse;margin-top:8px;font-size:14px}
+th,td{padding:8px 6px;border-bottom:1px solid #232b47;text-align:right}th{color:#9aa3bd;font-weight:600}
+th:first-child,td:first-child{text-align:left}
+.err{color:#ff8a8a}
+</style>
+</head>
+<body>
+<div class="wrap">
+<a class="back" href="../index.html">← All tools</a>
+<h1>SIP Calculator</h1>
+<p class="desc">What a monthly SIP could grow to — invested amount, estimated gains, and year-by-year growth.</p>
+
+<div class="card">
+  <div class="row">
+    <div>
+      <label for="monthly">Monthly investment (₹)</label>
+      <input id="monthly" type="number" min="0" value="10000" inputmode="decimal">
+    </div>
+    <div>
+      <label for="rate">Expected return (% / year)</label>
+      <input id="rate" type="number" min="0" step="0.1" value="12" inputmode="decimal">
+    </div>
+    <div>
+      <label for="years">Time period (years)</label>
+      <input id="years" type="number" min="1" max="60" value="10" inputmode="numeric">
+    </div>
+  </div>
+</div>
+
+<div class="card">
+  <div class="muted">Estimated total value</div>
+  <div class="big" id="fv">—</div>
+  <div class="stat"><span class="muted">Total invested</span><span id="invested">—</span></div>
+  <div class="stat"><span class="muted">Estimated gains</span><span id="gains">—</span></div>
+</div>
+
+<div class="card">
+  <div class="muted" style="margin-bottom:4px">Year-by-year growth</div>
+  <div style="overflow-x:auto"><table>
+    <thead><tr><th>Year</th><th>Invested</th><th>Est. gains</th><th>Total value</th></tr></thead>
+    <tbody id="tbody"><tr><td colspan="4" class="muted">Enter values above.</td></tr></tbody>
+  </table></div>
+  <p class="muted">Estimates only — market returns are not guaranteed.</p>
+</div>
+</div>
+
+<script>
+var $=function(id){return document.getElementById(id)};
+function inr(n){return '₹'+Math.round(n).toLocaleString('en-IN')}
+function fvAt(P,i,months){ return i===0 ? P*months : P*((Math.pow(1+i,months)-1)/i)*(1+i); }
+function calc(){
+  var P=parseFloat($('monthly').value), annual=parseFloat($('rate').value), years=parseFloat($('years').value);
+  if(!(P>0)||!(annual>=0)||!(years>=1)){
+    $('fv').innerHTML='<span class="err" style="font-size:18px">Enter valid values.</span>';
+    $('invested').textContent=$('gains').textContent='—';
+    $('tbody').innerHTML='<tr><td colspan="4" class="muted">—</td></tr>'; return;
+  }
+  years=Math.floor(years);
+  var i=annual/12/100, n=years*12;
+  var fv=fvAt(P,i,n), invested=P*n, gains=fv-invested;
+  $('fv').textContent=inr(fv);
+  $('invested').textContent=inr(invested);
+  $('gains').textContent=inr(gains);
+  var rows='';
+  for(var y=1;y<=years;y++){
+    var v=fvAt(P,i,y*12), inv=P*y*12;
+    rows+='<tr><td>'+y+'</td><td>'+inr(inv)+'</td><td>'+inr(v-inv)+'</td><td>'+inr(v)+'</td></tr>';
+  }
+  $('tbody').innerHTML=rows;
+}
+['monthly','rate','years'].forEach(function(id){ $(id).addEventListener('input',calc); });
+calc();
+</script>
+</body>
+</html>

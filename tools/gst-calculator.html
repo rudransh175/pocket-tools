@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>GST Calculator — Pocket Tools</title>
+<style>
+*{box-sizing:border-box}body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;background:#0b1020;color:#e8ebf5}
+.wrap{max-width:760px;margin:0 auto;padding:20px 16px 48px}
+a.back{color:#9aa3bd;text-decoration:none;font-size:14px}
+h1{margin:10px 0 4px;font-size:28px}.desc{color:#9aa3bd;margin:0 0 8px}
+.card{background:#151b31;border-radius:14px;padding:20px;margin-top:16px}
+label{display:block;color:#9aa3bd;font-size:14px;margin:14px 0 6px}label:first-child{margin-top:0}
+input,select{width:100%;padding:11px 12px;border-radius:10px;border:1px solid #2a3352;background:#0b1020;color:#e8ebf5;font-size:16px}
+.row{display:grid;grid-template-columns:1fr 1fr;gap:12px}@media(max-width:560px){.row{grid-template-columns:1fr}}
+.big{font-size:30px;font-weight:700;margin:4px 0}
+.muted{color:#9aa3bd;font-size:14px}
+.stat{display:flex;justify-content:space-between;padding:9px 0;border-bottom:1px solid #232b47}.stat:last-child{border-bottom:0}
+.err{color:#ff8a8a}
+</style>
+</head>
+<body>
+<div class="wrap">
+<a class="back" href="../index.html">← All tools</a>
+<h1>GST Calculator</h1>
+<p class="desc">Add or remove GST from an amount, with the CGST / SGST split.</p>
+
+<div class="card">
+  <label for="amount">Amount (₹)</label>
+  <input id="amount" type="number" min="0" value="1000" inputmode="decimal">
+  <div class="row">
+    <div>
+      <label for="slab">GST slab</label>
+      <select id="slab">
+        <option value="5">5%</option>
+        <option value="12">12%</option>
+        <option value="18" selected>18%</option>
+        <option value="28">28%</option>
+        <option value="custom">Custom %</option>
+      </select>
+    </div>
+    <div>
+      <label for="mode">Calculation</label>
+      <select id="mode">
+        <option value="add" selected>Add GST (amount is base price)</option>
+        <option value="remove">Remove GST (amount includes GST)</option>
+      </select>
+    </div>
+  </div>
+  <div id="customWrap" style="display:none">
+    <label for="customRate">Custom GST rate (%)</label>
+    <input id="customRate" type="number" min="0" step="0.01" value="18" inputmode="decimal">
+  </div>
+</div>
+
+<div class="card">
+  <div class="muted" id="totalLabel">Total (with GST)</div>
+  <div class="big" id="total">—</div>
+  <div class="stat"><span class="muted">Base amount (before GST)</span><span id="base">—</span></div>
+  <div class="stat"><span class="muted">CGST (half of GST)</span><span id="cgst">—</span></div>
+  <div class="stat"><span class="muted">SGST (half of GST)</span><span id="sgst">—</span></div>
+  <div class="stat"><span class="muted">Total GST</span><span id="gst">—</span></div>
+</div>
+</div>
+
+<script>
+var $=function(id){return document.getElementById(id)};
+function inr(n){return '₹'+n.toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2})}
+function calc(){
+  var amt=parseFloat($('amount').value);
+  var rate = $('slab').value==='custom' ? parseFloat($('customRate').value) : parseFloat($('slab').value);
+  $('customWrap').style.display = $('slab').value==='custom' ? 'block' : 'none';
+  if(!(amt>=0)||!(rate>=0)){
+    $('total').innerHTML='<span class="err" style="font-size:18px">Enter valid values.</span>';
+    $('base').textContent=$('cgst').textContent=$('sgst').textContent=$('gst').textContent='—'; return;
+  }
+  var base, gst, total;
+  if($('mode').value==='add'){ base=amt; gst=amt*rate/100; total=amt+gst; }
+  else { total=amt; base=amt/(1+rate/100); gst=total-base; }
+  $('totalLabel').textContent = $('mode').value==='add' ? 'Total (with GST)' : 'Total you pay (GST included)';
+  $('total').textContent=inr(total);
+  $('base').textContent=inr(base);
+  $('cgst').textContent=inr(gst/2);
+  $('sgst').textContent=inr(gst/2);
+  $('gst').textContent=inr(gst);
+}
+['amount','slab','mode','customRate'].forEach(function(id){ $(id).addEventListener('input',calc); $(id).addEventListener('change',calc); });
+calc();
+</script>
+</body>
+</html>

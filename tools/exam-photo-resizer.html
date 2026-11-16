@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Exam Photo Resizer — Pocket Tools</title>
+<style>
+  * { box-sizing: border-box; }
+  body { margin:0; font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; background:#0b1020; color:#e8ebf5; }
+  .wrap { max-width:760px; margin:0 auto; padding:20px 16px 48px; }
+  a.back { color:#9aa3bd; text-decoration:none; font-size:14px; }
+  a.back:hover { color:#e8ebf5; }
+  h1 { font-size:28px; margin:14px 0 6px; }
+  .desc { color:#9aa3bd; margin:0 0 20px; }
+  .card { background:#151b31; border-radius:14px; padding:20px; margin-bottom:16px; }
+  label { display:block; font-size:14px; color:#9aa3bd; margin:14px 0 6px; }
+  label:first-child { margin-top:0; }
+  input[type=file], input[type=number], select { width:100%; padding:10px; border-radius:10px; border:1px solid #2a3352; background:#0b1020; color:#e8ebf5; font-size:15px; }
+  .dl { display:inline-block; background:#6c5cff; color:#fff; border:none; padding:12px 20px; border-radius:10px; font-size:15px; font-weight:600; cursor:pointer; text-decoration:none; margin-top:14px; }
+  .stats { display:flex; gap:12px; flex-wrap:wrap; margin-top:6px; }
+  .stat { flex:1 1 140px; background:#0b1020; border-radius:10px; padding:12px; text-align:center; }
+  .stat b { display:block; font-size:19px; }
+  .stat span { font-size:12px; color:#9aa3bd; }
+  img.preview { max-width:100%; max-height:320px; border-radius:10px; margin-top:14px; display:none; background:#fff; }
+  .msg { color:#9aa3bd; font-size:14px; margin-top:10px; min-height:20px; }
+  .guide { font-size:13px; color:#9aa3bd; line-height:1.6; }
+  .guide b { color:#e8ebf5; }
+  .good { color:#5fd68a; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <a class="back" href="../index.html">← All tools</a>
+  <h1>Exam Photo Resizer</h1>
+  <p class="desc">Resize your photo or signature to fit Indian exam form upload limits — under your target KB, as JPEG. Works fully offline, nothing is uploaded.</p>
+
+  <div class="card">
+    <p class="guide"><b>Common guidance (always check your form's official notice first — limits change):</b><br>
+    • JEE Main / NEET photo: usually 10–200 KB, signature 4–30 KB<br>
+    • SSC photo: usually 20–50 KB, signature 10–20 KB<br>
+    • UPSC photo: usually 20–300 KB, signature 20–100 KB<br>
+    Set the target below to the <b>maximum KB your form allows</b> and this tool will get the file under it.</p>
+  </div>
+
+  <div class="card">
+    <label for="file">Upload photo or signature</label>
+    <input type="file" id="file" accept="image/*">
+    <label for="type">I am uploading a</label>
+    <select id="type">
+      <option value="photo">Photo</option>
+      <option value="signature">Signature</option>
+    </select>
+    <label for="target">Target maximum size (KB)</label>
+    <input type="number" id="target" value="50" min="5" max="2000" step="1">
+    <div class="msg" id="msg">Pick an image to start.</div>
+  </div>
+
+  <div class="card" id="resultCard" style="display:none">
+    <div class="stats">
+      <div class="stat"><b id="origSize">–</b><span>Original</span></div>
+      <div class="stat"><b class="good" id="finalSize">–</b><span>Final size</span></div>
+      <div class="stat"><b id="finalDims">–</b><span>Final dimensions</span></div>
+    </div>
+    <img class="preview" id="preview" alt="Resized preview">
+    <br>
+    <a class="dl" id="download" href="#" style="display:none">Download JPEG</a>
+  </div>
+</div>
+
+<script>
+(function(){
+  var fileInput = document.getElementById('file');
+  var typeSel = document.getElementById('type');
+  var targetInput = document.getElementById('target');
+  var msg = document.getElementById('msg');
+  var resultCard = document.getElementById('resultCard');
+  var preview = document.getElementById('preview');
+  var download = document.getElementById('download');
+  var img = null, origBytes = 0, currentURL = null, busy = false;
+
+  function fmt(b){
+    if (b < 1024) return b + ' B';
+    return (b/1024).toFixed(1) + ' KB';
+  }
+
+  function encode(w, h, q, cb){
+    var canvas = document.createElement('canvas');
+    canvas.width = w; canvas.height = h;
+    var ctx = canvas.getContext('2d');
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0,0,w,h);
+    ctx.drawImage(img, 0, 0, w, h);
+    canvas.toBlob(function(blob){ cb(blob); }, 'image/jpeg', q);
+  }
+
+  // Binary search the highest quality at w x h that stays under targetBytes.
+  // Calls cb(blob, fits) — if even the lowest quality is too big, returns that blob with fits=false.
+  function bestAtSize(w, h, targetBytes, cb){
+    var lo = 0.05, hi = 0.95, best = null, tries = 0;
+    function step(){
+      if (tries >= 7) { cb(best, !!best); return; }
+      tries++;
+      var mid = (lo + hi) / 2;
+      encode(w, h, mid, function(blob){
+        if (!blob) { cb(null, false); return; }
+        if (blob.size <= targetBytes) { best = blob; lo = mid; } else { hi = mid; }
+        step();
+      });
+    }
+    step();
+  }
+
+  function process(){
+    if (!img || busy) return;
+    var targetKB = parseFloat(targetInput.value);
+    if (!targetKB || targetKB < 5) { msg.textContent = 'Please enter a valid target KB (5 or more).'; return; }
+    var targetBytes = Math.floor(targetKB * 1024);
+    busy = true;
+    msg.textContent = 'Working… squeezing the file under ' + targetKB + ' KB.';
+    var scale = 1;
+    // Start signatures a bit smaller — they are simple images and compress well at modest widths.
+    if (typeSel.value === 'signature' && img.naturalWidth > 600) scale = 600 / img.naturalWidth;
+    if (typeSel.value === 'photo' && img.naturalWidth > 800) scale = 800 / img.naturalWidth;
+
+    function tryScale(){
+      var w = Math.max(20, Math.round(img.naturalWidth * scale));
+      var h = Math.max(20, Math.round(img.naturalHeight * scale));
+      bestAtSize(w, h, targetBytes, function(blob, fits){
+        if (blob && fits) { finish(blob, w, h); return; }
+        if (scale > 0.15) { scale *= 0.8; tryScale(); return; }
+        if (blob) { finish(blob, w, h); msg.textContent = 'This is the smallest we could get. Try a simpler / cropped image if your form still rejects it.'; return; }
+        busy = false;
+        msg.textContent = 'Sorry, processing failed for this image. Try another file.';
+      });
+    }
+
+    function finish(blob, w, h){
+      busy = false;
+      if (currentURL) URL.revokeObjectURL(currentURL);
+      currentURL = URL.createObjectURL(blob);
+      preview.src = currentURL; preview.style.display = 'block';
+      download.href = currentURL;
+      download.download = (typeSel.value === 'signature' ? 'signature.jpg' : 'photo.jpg');
+      download.style.display = 'inline-block';
+      document.getElementById('origSize').textContent = fmt(origBytes);
+      document.getElementById('finalSize').textContent = fmt(blob.size);
+      document.getElementById('finalDims').textContent = w + ' × ' + h + ' px';
+      resultCard.style.display = 'block';
+      if (blob.size <= targetBytes) msg.textContent = 'Done — final file is under your target. Download and upload it to your form.';
+    }
+    tryScale();
+  }
+
+  fileInput.addEventListener('change', function(){
+    var f = fileInput.files && fileInput.files[0];
+    if (!f) return;
+    if (f.type.indexOf('image/') !== 0) { msg.textContent = 'That is not an image file. Please pick a JPG or PNG.'; return; }
+    origBytes = f.size;
+    var url = URL.createObjectURL(f);
+    var tmp = new Image();
+    tmp.onload = function(){ img = tmp; process(); };
+    tmp.onerror = function(){ msg.textContent = 'Could not read that image. Try another file.'; };
+    tmp.src = url;
+  });
+  typeSel.addEventListener('change', process);
+  targetInput.addEventListener('change', process);
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Meme Maker — Pocket Tools</title>
+<style>
+  * { box-sizing: border-box; }
+  body { margin:0; font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; background:#0b1020; color:#e8ebf5; }
+  .wrap { max-width:760px; margin:0 auto; padding:20px 16px 48px; }
+  a.back { color:#9aa3bd; text-decoration:none; font-size:14px; }
+  a.back:hover { color:#e8ebf5; }
+  h1 { font-size:28px; margin:14px 0 6px; }
+  .desc { color:#9aa3bd; margin:0 0 20px; }
+  .card { background:#151b31; border-radius:14px; padding:20px; margin-bottom:16px; }
+  label { display:block; font-size:14px; color:#9aa3bd; margin:14px 0 6px; }
+  label:first-child { margin-top:0; }
+  input[type=file], input[type=text] { width:100%; padding:10px; border-radius:10px; border:1px solid #2a3352; background:#0b1020; color:#e8ebf5; font-size:15px; }
+  input[type=range] { width:100%; accent-color:#6c5cff; }
+  .val { color:#e8ebf5; font-weight:600; }
+  button { background:#6c5cff; color:#fff; border:none; padding:12px 20px; border-radius:10px; font-size:15px; font-weight:600; cursor:pointer; margin-top:14px; }
+  canvas.meme { width:100%; display:none; margin-top:14px; border-radius:10px; background:#000; }
+  .msg { color:#9aa3bd; font-size:14px; margin-top:10px; min-height:20px; }
+  .center { text-align:center; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <a class="back" href="../index.html">← All tools</a>
+  <h1>Meme Maker</h1>
+  <p class="desc">Add classic top and bottom meme text to any image and download it as a PNG. Works fully offline.</p>
+
+  <div class="card">
+    <label for="file">Upload an image</label>
+    <input type="file" id="file" accept="image/*">
+    <label for="top">Top text</label>
+    <input type="text" id="top" placeholder="WHEN THE CODE WORKS">
+    <label for="bottom">Bottom text</label>
+    <input type="text" id="bottom" placeholder="BUT YOU DON'T KNOW WHY">
+    <label for="size">Text size: <span class="val" id="sval">64</span> px</label>
+    <input type="range" id="size" min="20" max="140" value="64">
+    <div class="msg" id="msg">Pick an image to start.</div>
+    <div class="center">
+      <canvas class="meme" id="canvas"></canvas>
+      <br>
+      <button id="download" style="display:none">Download PNG</button>
+    </div>
+  </div>
+</div>
+
+<script>
+(function(){
+  var fileInput = document.getElementById('file');
+  var topInput = document.getElementById('top');
+  var bottomInput = document.getElementById('bottom');
+  var sizeInput = document.getElementById('size');
+  var sval = document.getElementById('sval');
+  var msg = document.getElementById('msg');
+  var canvas = document.getElementById('canvas');
+  var downloadBtn = document.getElementById('download');
+  var img = null;
+
+  function wrapLines(ctx, text, maxWidth){
+    var words = text.split(/\s+/), lines = [], line = '';
+    for (var i = 0; i < words.length; i++){
+      var test = line ? line + ' ' + words[i] : words[i];
+      if (ctx.measureText(test).width > maxWidth && line) { lines.push(line); line = words[i]; }
+      else line = test;
+    }
+    if (line) lines.push(line);
+    return lines;
+  }
+
+  function drawBlock(ctx, text, baseY, fromTop){
+    if (!text) return;
+    var size = parseInt(sizeInput.value, 10);
+    ctx.font = 'bold ' + size + 'px Impact, "Arial Black", sans-serif';
+    var lines = wrapLines(ctx, text.toUpperCase(), canvas.width - 24);
+    var lineH = size * 1.12;
+    for (var i = 0; i < lines.length; i++){
+      var y = fromTop ? baseY + i*lineH : baseY - (lines.length - 1 - i)*lineH;
+      ctx.strokeText(lines[i], canvas.width/2, y);
+      ctx.fillText(lines[i], canvas.width/2, y);
+    }
+  }
+
+  function draw(){
+    if (!img) return;
+    var maxW = 1000;
+    var scale = Math.min(1, maxW / img.naturalWidth);
+    canvas.width = Math.round(img.naturalWidth * scale);
+    canvas.height = Math.round(img.naturalHeight * scale);
+    var ctx = canvas.getContext('2d');
+    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+    var size = parseInt(sizeInput.value, 10);
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'top';
+    ctx.fillStyle = '#ffffff';
+    ctx.strokeStyle = '#000000';
+    ctx.lineWidth = Math.max(2, size / 7);
+    ctx.lineJoin = 'round';
+    drawBlock(ctx, topInput.value.trim(), size * 0.25, true);
+    ctx.textBaseline = 'bottom';
+    drawBlock(ctx, bottomInput.value.trim(), canvas.height - size * 0.25, false);
+    canvas.style.display = 'block';
+    downloadBtn.style.display = 'inline-block';
+  }
+
+  fileInput.addEventListener('change', function(){
+    var f = fileInput.files && fileInput.files[0];
+    if (!f) return;
+    if (f.type.indexOf('image/') !== 0) { msg.textContent = 'That is not an image file. Please pick a JPG or PNG.'; return; }
+    var url = URL.createObjectURL(f);
+    var tmp = new Image();
+    tmp.onload = function(){ img = tmp; msg.textContent = 'Image loaded. Type your text — the meme updates live.'; draw(); };
+    tmp.onerror = function(){ msg.textContent = 'Could not read that image. Try another file.'; };
+    tmp.src = url;
+  });
+  topInput.addEventListener('input', draw);
+  bottomInput.addEventListener('input', draw);
+  sizeInput.addEventListener('input', function(){ sval.textContent = sizeInput.value; draw(); });
+
+  downloadBtn.addEventListener('click', function(){
+    if (!img) return;
+    canvas.toBlob(function(blob){
+      if (!blob) { msg.textContent = 'Sorry, download failed. Try again.'; return; }
+      var a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = 'meme.png';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      setTimeout(function(){ URL.revokeObjectURL(a.href); }, 2000);
+    }, 'image/png');
+  });
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Percentage Calculator — Pocket Tools</title>
+<style>
+*{box-sizing:border-box}body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;background:#0b1020;color:#e8ebf5}
+.wrap{max-width:760px;margin:0 auto;padding:20px 16px 48px}
+a.back{color:#9aa3bd;text-decoration:none;font-size:14px}
+h1{margin:10px 0 4px;font-size:28px}.desc{color:#9aa3bd;margin:0 0 8px}
+.card{background:#151b31;border-radius:14px;padding:20px;margin-top:16px}
+h2{font-size:17px;margin:0 0 4px}
+label{display:block;color:#9aa3bd;font-size:14px;margin:12px 0 6px}
+input{width:100%;padding:11px 12px;border-radius:10px;border:1px solid #2a3352;background:#0b1020;color:#e8ebf5;font-size:16px}
+.row{display:grid;grid-template-columns:1fr 1fr;gap:12px}@media(max-width:560px){.row{grid-template-columns:1fr}}
+.res{font-size:22px;font-weight:700;margin-top:14px;color:#a99dff}
+.muted{color:#9aa3bd;font-size:14px}
+</style>
+</head>
+<body>
+<div class="wrap">
+<a class="back" href="../index.html">← All tools</a>
+<h1>Percentage Calculator</h1>
+<p class="desc">Four everyday percentage jobs in one place — all calculated live as you type.</p>
+
+<div class="card">
+  <h2>What is X% of Y?</h2>
+  <div class="row">
+    <div><label for="a_pct">X (%)</label><input id="a_pct" type="number" value="20" inputmode="decimal"></div>
+    <div><label for="a_num">Y (number)</label><input id="a_num" type="number" value="250" inputmode="decimal"></div>
+  </div>
+  <div class="res" id="a_out">—</div>
+</div>
+
+<div class="card">
+  <h2>X is what % of Y?</h2>
+  <div class="row">
+    <div><label for="b_x">X</label><input id="b_x" type="number" value="45" inputmode="decimal"></div>
+    <div><label for="b_y">Y</label><input id="b_y" type="number" value="180" inputmode="decimal"></div>
+  </div>
+  <div class="res" id="b_out">—</div>
+</div>
+
+<div class="card">
+  <h2>Percentage change</h2>
+  <div class="row">
+    <div><label for="c_from">From</label><input id="c_from" type="number" value="800" inputmode="decimal"></div>
+    <div><label for="c_to">To</label><input id="c_to" type="number" value="1000" inputmode="decimal"></div>
+  </div>
+  <div class="res" id="c_out">—</div>
+</div>
+
+<div class="card">
+  <h2>Marks percentage</h2>
+  <div class="row">
+    <div><label for="d_obt">Marks obtained</label><input id="d_obt" type="number" min="0" value="432" inputmode="decimal"></div>
+    <div><label for="d_tot">Total marks</label><input id="d_tot" type="number" min="0" value="500" inputmode="decimal"></div>
+  </div>
+  <div class="res" id="d_out">—</div>
+</div>
+</div>
+
+<script>
+var $=function(id){return document.getElementById(id)};
+function num(id){var v=parseFloat($(id).value);return isNaN(v)?null:v}
+function fmt(n,d){return n.toLocaleString('en-IN',{maximumFractionDigits:d==null?2:d})}
+function calcA(){
+  var x=num('a_pct'),y=num('a_num');
+  $('a_out').textContent=(x===null||y===null)?'—':fmt(x)+' % of '+fmt(y)+' = '+fmt(x/100*y);
+}
+function calcB(){
+  var x=num('b_x'),y=num('b_y');
+  $('b_out').textContent=(x===null||!y)?'— (Y cannot be 0)':fmt(x)+' is '+fmt(x/y*100)+' % of '+fmt(y);
+}
+function calcC(){
+  var a=num('c_from'),b=num('c_to');
+  if(a===null||b===null||a===0){$('c_out').textContent='— (starting value cannot be 0)';return}
+  var ch=(b-a)/Math.abs(a)*100;
+  $('c_out').textContent=fmt(Math.abs(ch))+'% '+(ch>0?'increase ↑':ch<0?'decrease ↓':'— no change');
+}
+function calcD(){
+  var o=num('d_obt'),t=num('d_tot');
+  $('d_out').textContent=(o===null||!t)?'— (total cannot be 0)':fmt(o)+' / '+fmt(t)+' = '+fmt(o/t*100)+' %';
+}
+[['a_pct','a_num',calcA],['b_x','b_y',calcB],['c_from','c_to',calcC],['d_obt','d_tot',calcD]]
+.forEach(function(g){ g.slice(0,2).forEach(function(id){ $(id).addEventListener('input',g[2]); }); g[2](); });
+</script>
+</body>
+</html>

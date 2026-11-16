@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>JSON Tools — Pocket Tools</title>
+<style>
+*{box-sizing:border-box}body{margin:0;font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;background:#0b1020;color:#e8ebf5}.wrap{max-width:760px;margin:0 auto;padding:20px 16px 40px}.back{color:#9aa3bd;text-decoration:none;font-size:14px;display:inline-block;margin-bottom:14px}.back:hover{color:#e8ebf5}.card{background:#151b31;border-radius:14px;padding:22px}h1{margin:0 0 6px;font-size:26px}.desc{color:#9aa3bd;margin:0 0 18px;line-height:1.5}textarea{width:100%;min-height:150px;background:#0b1020;color:#e8ebf5;border:1px solid #2a3358;border-radius:10px;padding:12px;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:14px;resize:vertical}textarea:focus{outline:2px solid #6c5cff;border-color:transparent}label{font-weight:600;display:block;margin:14px 0 6px}.btns{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px}button{background:#6c5cff;color:#fff;border:0;border-radius:10px;padding:10px 14px;cursor:pointer;font:inherit}button.secondary{background:#232b4a;color:#e8ebf5}button:active{transform:translateY(1px)}.status{border-radius:10px;padding:12px;margin-top:14px;display:none;line-height:1.5;word-break:break-word}.status.ok{display:block;background:#123324;color:#b7f4cf;border:1px solid #1e5c3d}.status.err{display:block;background:#3a1720;color:#ffc4c4;border:1px solid #6e2436}.stats{display:flex;flex-wrap:wrap;gap:10px;margin-top:12px}.stat{background:#0b1020;border:1px solid #232b4a;border-radius:10px;padding:10px 12px}.stat b{display:block;font-size:19px}.stat span{color:#9aa3bd;font-size:13px}
+</style>
+</head>
+<body>
+<div class="wrap">
+<a class="back" href="../index.html">← All tools</a>
+<div class="card">
+<h1>JSON Tools</h1>
+<p class="desc">Format, minify and validate JSON — entirely in your browser.</p>
+<label for="input">JSON input</label>
+<textarea id="input" placeholder='Paste JSON here, e.g. {"name":"test","items":[1,2,3]}' spellcheck="false"></textarea>
+<div class="btns">
+<button type="button" id="formatBtn">Format (pretty)</button>
+<button type="button" id="minifyBtn">Minify</button>
+<button type="button" id="validateBtn" class="secondary">Validate only</button>
+<button type="button" id="clearBtn" class="secondary">Clear</button>
+</div>
+<div class="status" id="status" role="status"></div>
+<div class="stats" id="stats" style="display:none">
+<div class="stat"><b id="statKeys">0</b><span>Object keys (total)</span></div>
+<div class="stat"><b id="statValues">0</b><span>Values (total)</span></div>
+<div class="stat"><b id="statDepth">0</b><span>Max depth</span></div>
+<div class="stat"><b id="statType">—</b><span>Top-level type</span></div>
+</div>
+<label for="output">Output</label>
+<textarea id="output" readonly placeholder="Formatted or minified JSON will appear here..." spellcheck="false"></textarea>
+<div class="btns">
+<button type="button" id="copyBtn">Copy output</button>
+<button type="button" id="useBtn" class="secondary">Use output as input</button>
+</div>
+</div>
+</div>
+<script>
+(function(){
+"use strict";
+var input=document.getElementById('input'),output=document.getElementById('output');
+var status=document.getElementById('status');
+function showStatus(kind,text){
+  status.className='status '+kind;
+  status.textContent=text;
+}
+function hideStats(){document.getElementById('stats').style.display='none';}
+function typeName(v){
+  if(v===null)return 'null';
+  if(Array.isArray(v))return 'array';
+  return typeof v;
+}
+function computeStats(root){
+  var keys=0,values=0,maxDepth=0;
+  (function walk(node,depth){
+    values++;
+    if(depth>maxDepth)maxDepth=depth;
+    if(Array.isArray(node)){
+      node.forEach(function(child){walk(child,depth+1);});
+    }else if(node!==null&&typeof node==='object'){
+      var ks=Object.keys(node);
+      keys+=ks.length;
+      ks.forEach(function(k){walk(node[k],depth+1);});
+    }
+  })(root,1);
+  return {keys:keys,values:values,depth:maxDepth,type:typeName(root)};
+}
+function parseInput(){
+  var raw=input.value;
+  if(!raw.trim()){showStatus('err','Input is empty — paste some JSON first.');hideStats();return {ok:false};}
+  try{
+    var data=JSON.parse(raw);
+    var s=computeStats(data);
+    document.getElementById('statKeys').textContent=s.keys;
+    document.getElementById('statValues').textContent=s.values;
+    document.getElementById('statDepth').textContent=s.depth;
+    document.getElementById('statType').textContent=s.type;
+    document.getElementById('stats').style.display='flex';
+    showStatus('ok','Valid JSON.');
+    return {ok:true,data:data};
+  }catch(e){
+    hideStats();
+    showStatus('err','Invalid JSON: '+(e&&e.message?e.message:String(e)));
+    return {ok:false};
+  }
+}
+document.getElementById('formatBtn').addEventListener('click',function(){
+  var r=parseInput();
+  if(r.ok)output.value=JSON.stringify(r.data,null,2);
+});
+document.getElementById('minifyBtn').addEventListener('click',function(){
+  var r=parseInput();
+  if(r.ok)output.value=JSON.stringify(r.data);
+});
+document.getElementById('validateBtn').addEventListener('click',function(){parseInput();});
+document.getElementById('clearBtn').addEventListener('click',function(){
+  input.value='';output.value='';status.className='status';status.textContent='';hideStats();input.focus();
+});
+document.getElementById('useBtn').addEventListener('click',function(){if(output.value)input.value=output.value;});
+document.getElementById('copyBtn').addEventListener('click',function(){
+  if(!output.value){showStatus('err','Nothing to copy yet — format or minify first.');return;}
+  function fallback(){output.focus();output.select();try{document.execCommand('copy');showStatus('ok','Copied to clipboard.');}catch(e){showStatus('err','Copy failed — select the output and copy manually.');}}
+  if(navigator.clipboard&&navigator.clipboard.writeText){
+    navigator.clipboard.writeText(output.value).then(function(){showStatus('ok','Copied to clipboard.');},fallback);
+  }else{fallback();}
+});
+})();
+</script>
+</body>
+</html>

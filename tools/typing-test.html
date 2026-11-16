@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Typing Test — Pocket Tools</title>
+<style>
+*{box-sizing:border-box}body{margin:0;font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;background:#0b1020;color:#e8ebf5}.wrap{max-width:760px;margin:0 auto;padding:20px 16px 40px}.back{color:#9aa3bd;text-decoration:none;font-size:14px;display:inline-block;margin-bottom:14px}.back:hover{color:#e8ebf5}.card{background:#151b31;border-radius:14px;padding:22px}h1{margin:0 0 6px;font-size:26px}.desc{color:#9aa3bd;margin:0 0 18px;line-height:1.5}.sample{background:#0b1020;border:1px solid #232b4a;border-radius:10px;padding:16px;font-size:19px;line-height:1.7;letter-spacing:.2px;word-break:break-word}.sample span{border-radius:3px}.sample .ok{color:#7ee2a0}.sample .bad{color:#ff8f8f;background:#3a1720}.sample .cur{background:#2a3358}.stats{display:flex;flex-wrap:wrap;gap:10px;margin-top:14px}.stat{background:#0b1020;border:1px solid #232b4a;border-radius:10px;padding:10px 12px;flex:1;min-width:110px}.stat b{display:block;font-size:21px}.stat span{color:#9aa3bd;font-size:13px}textarea{width:100%;min-height:90px;background:#0b1020;color:#e8ebf5;border:1px solid #2a3358;border-radius:10px;padding:12px;font:inherit;resize:vertical;margin-top:14px}textarea:focus{outline:2px solid #6c5cff;border-color:transparent}button{background:#6c5cff;color:#fff;border:0;border-radius:10px;padding:10px 14px;cursor:pointer;font:inherit;margin-top:14px}button:active{transform:translateY(1px)}#result{display:none;margin-top:16px;background:#123324;border:1px solid #1e5c3d;color:#dffbe9;border-radius:10px;padding:16px;line-height:1.6}#result b{font-size:20px}.muted{color:#9aa3bd}
+</style>
+</head>
+<body>
+<div class="wrap">
+<a class="back" href="../index.html">← All tools</a>
+<div class="card">
+<h1>Typing Test</h1>
+<p class="desc">Type the paragraph below. The 60-second clock starts on your first keystroke.</p>
+<div class="sample" id="sample" aria-label="Sample text to type"></div>
+<div class="stats">
+<div class="stat"><b id="timeLeft">60</b><span>Seconds left</span></div>
+<div class="stat"><b id="wpm">0</b><span>WPM</span></div>
+<div class="stat"><b id="accuracy">100%</b><span>Accuracy</span></div>
+<div class="stat"><b id="progress">0</b><span>Characters typed</span></div>
+</div>
+<textarea id="input" placeholder="Start typing here..." autocomplete="off" autocapitalize="off" spellcheck="false" aria-label="Typing input"></textarea>
+<div id="result" role="status"></div>
+<button type="button" id="restartBtn">Restart with a different paragraph</button>
+<p class="muted">Tip: type the text exactly, including spaces and punctuation. Restarting switches to another paragraph.</p>
+</div>
+</div>
+<script>
+(function(){
+"use strict";
+var SAMPLES=[
+"The morning train rolled into the small station just as the sun came up over the fields. People hurried across the platform with bags in their hands, looking for a good seat near the window. A young boy sold hot tea from a steel pot and called out to every passenger who passed him by. It was the start of another busy day, and the whole town seemed to be moving at once.",
+"A good garden needs patience more than anything else. You plant the seeds, water the soil, and wait for the first green shoots to appear. Some days nothing seems to change at all, and then one morning the whole bed is full of life. The work is slow, but it teaches you to pay attention to small things and to trust that steady effort adds up over time.",
+"When the team moved into the new office, they found a bright room with tall windows and a long wooden table. They set up their computers, made a pot of coffee, and wrote their plan for the month on a big sheet of paper. Everyone had a job to do, and by the end of the first week the place already felt like home. Good work, they agreed, starts with a clear plan and a calm mind."
+];
+var sampleEl=document.getElementById('sample'),input=document.getElementById('input');
+var timeEl=document.getElementById('timeLeft'),wpmEl=document.getElementById('wpm'),
+    accEl=document.getElementById('accuracy'),progEl=document.getElementById('progress'),
+    resultEl=document.getElementById('result');
+var idx=Math.floor(Math.random()*SAMPLES.length);
+var sample='',started=false,finished=false,startAt=0,endAt=0,timer=null;
+function renderSample(){
+  var typed=input.value;
+  sampleEl.innerHTML='';
+  Array.from(sample).forEach(function(ch,i){
+    var span=document.createElement('span');
+    span.textContent=ch;
+    if(i<typed.length){span.className=(typed.charAt(i)===ch)?'ok':'bad';}
+    else if(i===typed.length&&!finished){span.className='cur';}
+    sampleEl.appendChild(span);
+  });
+}
+function counts(){
+  var typed=input.value,correct=0;
+  for(var i=0;i<typed.length&&i<sample.length;i++){if(typed.charAt(i)===sample.charAt(i))correct++;}
+  return {typed:typed.length,correct:correct};
+}
+function elapsedMin(){
+  if(!started)return 0;
+  var end=finished?endAt:Date.now();
+  var sec=(end-startAt)/1000;
+  return sec>0?sec/60:0;
+}
+function updateStats(){
+  var c=counts(),mins=elapsedMin();
+  var wpm=mins>0?Math.round((c.correct/5)/mins):0;
+  var acc=c.typed>0?Math.round(c.correct/c.typed*100):100;
+  wpmEl.textContent=wpm;
+  accEl.textContent=acc+'%';
+  progEl.textContent=c.typed;
+}
+function finish(reason){
+  if(finished)return;
+  finished=true;endAt=Date.now();
+  clearInterval(timer);timer=null;
+  input.disabled=true;
+  timeEl.textContent=Math.max(0,Math.round((60000-(endAt-startAt))/1000));
+  if(!started)timeEl.textContent='60';
+  updateStats();
+  var c=counts(),mins=elapsedMin();
+  var wpm=mins>0?Math.round((c.correct/5)/mins):0;
+  var acc=c.typed>0?(c.correct/c.typed*100).toFixed(1):'100.0';
+  resultEl.style.display='block';
+  resultEl.innerHTML='';
+  var head=document.createElement('b');head.textContent='Your result';
+  var body=document.createElement('div');
+  body.textContent=(reason==='done'?'You finished the paragraph! ':'Time is up! ')+
+    'Speed: '+wpm+' WPM · Accuracy: '+acc+'% · Correct characters: '+c.correct+' of '+c.typed+' typed.';
+  resultEl.appendChild(head);resultEl.appendChild(body);
+  renderSample();
+}
+function tick(){
+  var left=Math.max(0,Math.ceil((startAt+60000-Date.now())/1000));
+  timeEl.textContent=left;
+  updateStats();
+  if(left<=0)finish('time');
+}
+function start(){
+  if(started||finished)return;
+  started=true;startAt=Date.now();
+  timer=setInterval(tick,200);
+}
+function reset(nextIdx){
+  idx=nextIdx;
+  sample=SAMPLES[idx];
+  started=false;finished=false;startAt=0;endAt=0;
+  clearInterval(timer);timer=null;
+  input.value='';input.disabled=false;
+  timeEl.textContent='60';wpmEl.textContent='0';accEl.textContent='100%';progEl.textContent='0';
+  resultEl.style.display='none';resultEl.innerHTML='';
+  renderSample();
+  input.focus();
+}
+input.addEventListener('input',function(){
+  if(finished)return;
+  if(input.value.length>sample.length)input.value=input.value.slice(0,sample.length);
+  if(input.value.length>0)start();
+  renderSample();updateStats();
+  if(input.value.length>=sample.length)finish('done');
+});
+input.addEventListener('paste',function(e){e.preventDefault();});
+document.getElementById('restartBtn').addEventListener('click',function(){
+  var next=idx;
+  if(SAMPLES.length>1){while(next===idx)next=Math.floor(Math.random()*SAMPLES.length);}
+  reset(next);
+});
+reset(idx);
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Image Compressor — Pocket Tools</title>
+<style>
+  * { box-sizing: border-box; }
+  body { margin:0; font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; background:#0b1020; color:#e8ebf5; }
+  .wrap { max-width:760px; margin:0 auto; padding:20px 16px 48px; }
+  a.back { color:#9aa3bd; text-decoration:none; font-size:14px; }
+  a.back:hover { color:#e8ebf5; }
+  h1 { font-size:28px; margin:14px 0 6px; }
+  .desc { color:#9aa3bd; margin:0 0 20px; }
+  .card { background:#151b31; border-radius:14px; padding:20px; margin-bottom:16px; }
+  label { display:block; font-size:14px; color:#9aa3bd; margin:14px 0 6px; }
+  label:first-child { margin-top:0; }
+  input[type=file], select { width:100%; padding:10px; border-radius:10px; border:1px solid #2a3352; background:#0b1020; color:#e8ebf5; font-size:15px; }
+  input[type=range] { width:100%; accent-color:#6c5cff; }
+  .val { color:#e8ebf5; font-weight:600; }
+  button, .dl { display:inline-block; background:#6c5cff; color:#fff; border:none; padding:12px 20px; border-radius:10px; font-size:15px; font-weight:600; cursor:pointer; text-decoration:none; margin-top:14px; }
+  button:disabled { opacity:.45; cursor:not-allowed; }
+  .stats { display:flex; gap:12px; flex-wrap:wrap; margin-top:6px; }
+  .stat { flex:1 1 140px; background:#0b1020; border-radius:10px; padding:12px; text-align:center; }
+  .stat b { display:block; font-size:19px; }
+  .stat span { font-size:12px; color:#9aa3bd; }
+  img.preview { max-width:100%; border-radius:10px; margin-top:14px; display:none; }
+  .msg { color:#9aa3bd; font-size:14px; margin-top:10px; min-height:20px; }
+  .good { color:#5fd68a; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <a class="back" href="../index.html">← All tools</a>
+  <h1>Image Compressor</h1>
+  <p class="desc">Shrink a JPG/PNG/WebP image right in your browser. Nothing is uploaded anywhere — it works fully offline.</p>
+
+  <div class="card">
+    <label for="file">Choose an image</label>
+    <input type="file" id="file" accept="image/*">
+    <label for="quality">JPEG quality: <span class="val" id="qval">80</span>%</label>
+    <input type="range" id="quality" min="10" max="95" value="80">
+    <label for="maxw">Max width</label>
+    <select id="maxw">
+      <option value="0">Original size</option>
+      <option value="1920">1920 px</option>
+      <option value="1280">1280 px</option>
+      <option value="800">800 px</option>
+      <option value="640">640 px</option>
+    </select>
+    <div class="msg" id="msg">Pick an image to start.</div>
+  </div>
+
+  <div class="card" id="resultCard" style="display:none">
+    <div class="stats">
+      <div class="stat"><b id="origSize">–</b><span>Original</span></div>
+      <div class="stat"><b id="newSize">–</b><span>Compressed</span></div>
+      <div class="stat"><b class="good" id="saved">–</b><span>Saved</span></div>
+      <div class="stat"><b id="dims">–</b><span>Dimensions</span></div>
+    </div>
+    <img class="preview" id="preview" alt="Compressed preview">
+    <br>
+    <a class="dl" id="download" href="#" download="compressed.jpg" style="display:none">Download compressed image</a>
+  </div>
+</div>
+
+<script>
+(function(){
+  var fileInput = document.getElementById('file');
+  var quality = document.getElementById('quality');
+  var qval = document.getElementById('qval');
+  var maxw = document.getElementById('maxw');
+  var msg = document.getElementById('msg');
+  var resultCard = document.getElementById('resultCard');
+  var preview = document.getElementById('preview');
+  var download = document.getElementById('download');
+  var img = null, origBytes = 0, currentURL = null;
+
+  function fmt(b){
+    if (b < 1024) return b + ' B';
+    if (b < 1024*1024) return (b/1024).toFixed(1) + ' KB';
+    return (b/(1024*1024)).toFixed(2) + ' MB';
+  }
+
+  function compress(){
+    if (!img) return;
+    var maxW = parseInt(maxw.value, 10);
+    var scale = 1;
+    if (maxW > 0 && img.naturalWidth > maxW) scale = maxW / img.naturalWidth;
+    var w = Math.max(1, Math.round(img.naturalWidth * scale));
+    var h = Math.max(1, Math.round(img.naturalHeight * scale));
+    var canvas = document.createElement('canvas');
+    canvas.width = w; canvas.height = h;
+    var ctx = canvas.getContext('2d');
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0,0,w,h);
+    ctx.drawImage(img, 0, 0, w, h);
+    var q = parseInt(quality.value,10) / 100;
+    canvas.toBlob(function(blob){
+      if (!blob) { msg.textContent = 'Sorry, compression failed for this image.'; return; }
+      if (currentURL) URL.revokeObjectURL(currentURL);
+      currentURL = URL.createObjectURL(blob);
+      preview.src = currentURL; preview.style.display = 'block';
+      download.href = currentURL; download.style.display = 'inline-block';
+      document.getElementById('origSize').textContent = fmt(origBytes);
+      document.getElementById('newSize').textContent = fmt(blob.size);
+      var pct = origBytes ? Math.round((1 - blob.size/origBytes) * 100) : 0;
+      document.getElementById('saved').textContent = (pct >= 0 ? pct + '%' : 'bigger');
+      document.getElementById('dims').textContent = w + ' × ' + h;
+      resultCard.style.display = 'block';
+      msg.textContent = pct >= 0 ? 'Done. Adjust quality or width to compress more.' : 'Output is larger than the original — try lower quality.';
+    }, 'image/jpeg', q);
+  }
+
+  fileInput.addEventListener('change', function(){
+    var f = fileInput.files && fileInput.files[0];
+    if (!f) return;
+    if (f.type.indexOf('image/') !== 0) { msg.textContent = 'That is not an image file. Please pick a JPG, PNG or WebP.'; return; }
+    origBytes = f.size;
+    var url = URL.createObjectURL(f);
+    var tmp = new Image();
+    tmp.onload = function(){ img = tmp; msg.textContent = 'Image loaded: ' + f.name; compress(); };
+    tmp.onerror = function(){ msg.textContent = 'Could not read that image. Try another file.'; };
+    tmp.src = url;
+  });
+  quality.addEventListener('input', function(){ qval.textContent = quality.value; compress(); });
+  maxw.addEventListener('change', compress);
+})();
+</script>
+</body>
+</html>
