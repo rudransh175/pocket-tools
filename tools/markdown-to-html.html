@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Markdown to HTML — Pocket Tools</title>
+<style>
+  * { box-sizing: border-box; }
+  body { margin:0; font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; background:#0b1020; color:#e8ebf5; }
+  .wrap { max-width:860px; margin:0 auto; padding:20px 16px 48px; }
+  a.back { color:#9aa3bd; text-decoration:none; font-size:14px; }
+  a.back:hover { color:#e8ebf5; }
+  h1 { font-size:28px; margin:14px 0 6px; }
+  .desc { color:#9aa3bd; margin:0 0 20px; }
+  .card { background:#151b31; border-radius:14px; padding:20px; margin-bottom:16px; }
+  label { display:block; font-size:14px; color:#9aa3bd; margin:14px 0 6px; }
+  label:first-child { margin-top:0; }
+  textarea { width:100%; min-height:220px; padding:12px; border-radius:10px; border:1px solid #2a3352; background:#0b1020; color:#e8ebf5; font-family: ui-monospace, Menlo, Consolas, monospace; font-size:13.5px; line-height:1.55; resize:vertical; }
+  button, .dl { display:inline-block; background:#6c5cff; color:#fff; border:none; padding:12px 20px; border-radius:10px; font-size:15px; font-weight:600; cursor:pointer; text-decoration:none; margin-top:14px; }
+  button.secondary { background:#232c49; }
+  .row { display:flex; gap:8px; flex-wrap:wrap; }
+  .preview { background:#ffffff; color:#1c2333; border-radius:10px; padding:18px 20px; line-height:1.6; overflow-x:auto; }
+  .preview code { background:#eef1f8; padding:1px 5px; border-radius:5px; font-size:0.92em; }
+  .preview pre { background:#151b31; color:#e8ebf5; padding:14px; border-radius:10px; overflow-x:auto; }
+  .preview pre code { background:transparent; padding:0; color:inherit; }
+  .preview blockquote { border-left:4px solid #6c5cff; margin:12px 0; padding:2px 14px; color:#4a5570; }
+  .preview table { border-collapse:collapse; }
+  .preview th, .preview td { border:1px solid #c9d2e8; padding:6px 10px; }
+  .preview a { color:#6c5cff; }
+  .msg { color:#9aa3bd; font-size:14px; margin-top:10px; min-height:20px; }
+  .good { color:#5fd68a; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <a class="back" href="../index.html">← All tools</a>
+  <h1>Markdown to HTML</h1>
+  <p class="desc">Write Markdown on the left, get clean HTML and a live preview. Headings, bold/italic, links, images, code, lists, quotes and tables. Raw HTML inside your Markdown is shown as text, never run — safe by design. Fully offline.</p>
+
+  <div class="card">
+    <label for="md">Markdown</label>
+    <textarea id="md"># My notes
+
+Some **bold** and *italic* text, a [link](example page), and `inline code`.
+
+- first point
+- second point
+
+1. one
+2. two
+
+> A wise quote.
+
+| Name | Marks |
+| --- | --- |
+| Asha | 91 |
+| Rohan | 87 |
+</textarea>
+    <div class="row">
+      <button type="button" class="secondary" id="copy">Copy HTML</button>
+      <a class="dl" id="download" href="#" download="page.html">Download .html</a>
+    </div>
+    <div class="msg" id="msg">Preview updates as you type.</div>
+  </div>
+
+  <div class="card">
+    <label>Live preview</label>
+    <div class="preview" id="preview"></div>
+  </div>
+
+  <div class="card">
+    <label for="htmlOut">Generated HTML</label>
+    <textarea id="htmlOut" readonly></textarea>
+  </div>
+</div>
+
+<script>
+(function(){
+  var mdEl = document.getElementById('md');
+  var preview = document.getElementById('preview');
+  var htmlOut = document.getElementById('htmlOut');
+  var msg = document.getElementById('msg');
+  var download = document.getElementById('download');
+  var currentURL = null;
+
+  function esc(s){
+    return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  }
+
+  /* Inline formatting. Input is already HTML-escaped; code spans are
+     swapped for placeholders first so their contents stay literal. */
+  function inline(text){
+    var codes = [];
+    text = text.replace(/`([^`]+)`/g, function(m, c){
+      codes.push('<code>' + c + '</' + 'code>');
+      return '\u0001' + (codes.length - 1) + '\u0002';
+    });
+    text = text.replace(/!\[([^\]]*)\]\(([^)\s]+)(?:\s+&quot;[^&]*&quot;)?\)/g, '<img alt="$1" src="$2">');
+    text = text.replace(/\[([^\]]+)\]\(([^)\s]+)\)/g, '<a href="$2">$1</a>');
+    text = text.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+    text = text.replace(/__([^_]+)__/g, '<strong>$1</strong>');
+    text = text.replace(/(^|[^*])\*([^*\n]+)\*/g, '$1<em>$2</em>');
+    text = text.replace(/(^|[^_])_([^_\n]+)_/g, '$1<em>$2</em>');
+    text = text.replace(/~~([^~]+)~~/g, '<del>$1</del>');
+    text = text.replace(/\u0001(\d+)\u0002/g, function(m, i){ return codes[parseInt(i, 10)]; });
+    return text;
+  }
+
+  function mdToHtml(md){
+    var text = esc(md.replace(/\r\n?/g, '\n'));
+    // Pull fenced code blocks out first.
+    var blocks = [];
+    text = text.replace(/```[^\n]*\n([\s\S]*?)(?:```|$)/g, function(m, code){
+      blocks.push('<pre><code>' + code.replace(/\n$/, '') + '</' + 'code></pre>');
+      return '\n\u0003' + (blocks.length - 1) + '\u0004\n';
+    });
+
+    var lines = text.split('\n');
+    var out = [], i = 0;
+    function isTableSep(line){ return /^\s*\|?[\s:|-]+\|?\s*$/.test(line) && line.indexOf('-') !== -1; }
+    function splitRow(line){
+      var t = line.trim().replace(/^\||\|$/g, '');
+      return t.split('|').map(function(c){ return c.trim(); });
+    }
+
+    while (i < lines.length) {
+      var line = lines[i];
+
+      var ph = line.match(/^\u0003(\d+)\u0004$/);
+      if (ph) { out.push(blocks[parseInt(ph[1], 10)]); i++; continue; }
+      if (/^\s*$/.test(line)) { i++; continue; }
+
+      var h = line.match(/^(#{1,6})\s+(.*)$/);
+      if (h) { out.push('<h' + h[1].length + '>' + inline(h[2]) + '</h' + h[1].length + '>'); i++; continue; }
+
+      if (/^\s*(-{3,}|\*{3,}|_{3,})\s*$/.test(line)) { out.push('<hr>'); i++; continue; }
+
+      // Table: header row followed by a separator row.
+      if (line.indexOf('|') !== -1 && i + 1 < lines.length && isTableSep(lines[i + 1])) {
+        var head = splitRow(line);
+        var t = '<table><thead><tr>' + head.map(function(c){ return '<th>' + inline(c) + '</th>'; }).join('') + '</tr></thead><tbody>';
+        i += 2;
+        while (i < lines.length && lines[i].indexOf('|') !== -1 && lines[i].trim()) {
+          var cells = splitRow(lines[i]);
+          t += '<tr>' + cells.map(function(c){ return '<td>' + inline(c) + '</td>'; }).join('') + '</tr>';
+          i++;
+        }
+        out.push(t + '</tbody></table>');
+        continue;
+      }
+
+      if (/^\s*&gt;\s?/.test(line)) {
+        var quote = [];
+        while (i < lines.length && /^\s*&gt;\s?/.test(lines[i])) {
+          quote.push(lines[i].replace(/^\s*&gt;\s?/, '')); i++;
+        }
+        out.push('<blockquote>' + quote.map(function(q){ return '<p>' + inline(q) + '</p>'; }).join('') + '</blockquote>');
+        continue;
+      }
+
+      if (/^\s*[-*+]\s+/.test(line)) {
+        var ul = [];
+        while (i < lines.length && /^\s*[-*+]\s+/.test(lines[i])) {
+          ul.push('<li>' + inline(lines[i].replace(/^\s*[-*+]\s+/, '')) + '</li>'); i++;
+        }
+        out.push('<ul>' + ul.join('') + '</ul>');
+        continue;
+      }
+
+      if (/^\s*\d+[.)]\s+/.test(line)) {
+        var ol = [];
+        while (i < lines.length && /^\s*\d+[.)]\s+/.test(lines[i])) {
+          ol.push('<li>' + inline(lines[i].replace(/^\s*\d+[.)]\s+/, '')) + '</li>'); i++;
+        }
+        out.push('<ol>' + ol.join('') + '</ol>');
+        continue;
+      }
+
+      // Paragraph: gather until a blank line or a block starter.
+      var para = [line]; i++;
+      while (i < lines.length && lines[i].trim() &&
+             !/^(#{1,6})\s/.test(lines[i]) && !/^\s*&gt;\s?/.test(lines[i]) &&
+             !/^\s*[-*+]\s+/.test(lines[i]) && !/^\s*\d+[.)]\s+/.test(lines[i]) &&
+             !/^\u0003\d+\u0004$/.test(lines[i])) {
+        para.push(lines[i]); i++;
+      }
+      out.push('<p>' + inline(para.join(' ')) + '</p>');
+    }
+    return out.join('\n');
+  }
+
+  function update(){
+    var html = mdToHtml(mdEl.value);
+    preview.innerHTML = html;
+    htmlOut.value = html;
+    var page = '<!DOCTYPE html>\n<html lang="en">\n<head>\n<meta charset="UTF-8">\n' +
+      '<meta name="viewport" content="width=device-width, initial-scale=1.0">\n<title>Document</title>\n</head>\n<body>\n' +
+      html + '\n</body>\n</html>';
+    if (currentURL) URL.revokeObjectURL(currentURL);
+    currentURL = URL.createObjectURL(new Blob([page], { type: 'text/html' }));
+    download.href = currentURL;
+  }
+
+  mdEl.addEventListener('input', update);
+  document.getElementById('copy').addEventListener('click', function(){
+    var done = function(){ msg.innerHTML = '<span class="good">HTML copied to clipboard.</span>'; };
+    if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(htmlOut.value).then(done, function(){ htmlOut.select(); document.execCommand('copy'); done(); });
+    else { htmlOut.select(); document.execCommand('copy'); done(); }
+  });
+  update();
+})();
+</script>
+</body>
+</html>

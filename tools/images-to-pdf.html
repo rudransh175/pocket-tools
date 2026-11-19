@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Images to PDF — Pocket Tools</title>
+<style>
+  * { box-sizing: border-box; }
+  body { margin:0; font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; background:#0b1020; color:#e8ebf5; }
+  .wrap { max-width:760px; margin:0 auto; padding:20px 16px 48px; }
+  a.back { color:#9aa3bd; text-decoration:none; font-size:14px; }
+  a.back:hover { color:#e8ebf5; }
+  h1 { font-size:28px; margin:14px 0 6px; }
+  .desc { color:#9aa3bd; margin:0 0 20px; }
+  .card { background:#151b31; border-radius:14px; padding:20px; margin-bottom:16px; }
+  label { display:block; font-size:14px; color:#9aa3bd; margin:14px 0 6px; }
+  label:first-child { margin-top:0; }
+  input[type=file], input[type=number], select { width:100%; padding:10px; border-radius:10px; border:1px solid #2a3352; background:#0b1020; color:#e8ebf5; font-size:15px; }
+  button, .dl { display:inline-block; background:#6c5cff; color:#fff; border:none; padding:12px 20px; border-radius:10px; font-size:15px; font-weight:600; cursor:pointer; text-decoration:none; margin-top:14px; }
+  button:disabled { opacity:.45; cursor:not-allowed; }
+  .row { display:flex; gap:10px; }
+  .row > div { flex:1; }
+  .fileitem { display:flex; justify-content:space-between; gap:10px; padding:8px 0; border-bottom:1px solid #232c49; font-size:14px; color:#c6cdea; }
+  .fileitem:last-child { border-bottom:none; }
+  .fileitem span:last-child { color:#9aa3bd; white-space:nowrap; }
+  .msg { color:#9aa3bd; font-size:14px; margin-top:10px; min-height:20px; line-height:1.55; }
+  .good { color:#5fd68a; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <a class="back" href="../index.html">← All tools</a>
+  <h1>Images to PDF</h1>
+  <p class="desc">Combine several images into one PDF — one image per page, in the order you pick them. The PDF is built right here in your browser; nothing is uploaded, ever.</p>
+
+  <div class="card">
+    <label for="file">Choose images (you can pick many)</label>
+    <input type="file" id="file" accept="image/*" multiple>
+    <div id="list"></div>
+    <div class="row">
+      <div>
+        <label for="pageSize">Page size</label>
+        <select id="pageSize">
+          <option value="a4" selected>A4</option>
+          <option value="letter">Letter</option>
+          <option value="fit">Fit to image</option>
+        </select>
+      </div>
+      <div>
+        <label for="margin">Margin (points)</label>
+        <input type="number" id="margin" min="0" max="144" value="36">
+      </div>
+    </div>
+    <button type="button" id="go" disabled>Make PDF</button>
+    <div class="msg" id="msg">Pick at least one image to start.</div>
+    <a class="dl" id="download" href="#" download="images.pdf" style="display:none">Download PDF</a>
+  </div>
+</div>
+
+<script>
+(function(){
+  var fileInput = document.getElementById('file');
+  var listEl = document.getElementById('list');
+  var pageSizeSel = document.getElementById('pageSize');
+  var marginInput = document.getElementById('margin');
+  var goBtn = document.getElementById('go');
+  var msg = document.getElementById('msg');
+  var download = document.getElementById('download');
+  var files = [], currentURL = null;
+
+  function fmt(b){
+    if (b < 1024) return b + ' B';
+    if (b < 1024*1024) return (b/1024).toFixed(1) + ' KB';
+    return (b/(1024*1024)).toFixed(2) + ' MB';
+  }
+
+  /*PDF-BUILDER-START*/
+  // Minimal hand-rolled PDF writer. pages: [{jpeg:Uint8Array, iw, ih, pw, ph, x, y, w, h}]
+  // (iw/ih = image pixels; pw/ph = page size in points; x/y/w/h = where the image is drawn, points)
+  function buildPdf(pages){
+    var chunks = [], offsets = [], pos = 0;
+    function pushStr(s){
+      var b = new Uint8Array(s.length);
+      for (var i = 0; i < s.length; i++) b[i] = s.charCodeAt(i) & 0xff;
+      chunks.push(b); pos += b.length;
+    }
+    function pushBytes(b){ chunks.push(b); pos += b.length; }
+    function num(n){ return Math.round(n * 100) / 100; }
+
+    pushStr('%PDF-1.4\n');
+    var totalObjs = 2 + pages.length * 3;
+    var kids = [];
+    for (var i = 0; i < pages.length; i++) kids.push((3 + i * 3) + ' 0 R');
+
+    offsets[1] = pos;
+    pushStr('1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n');
+    offsets[2] = pos;
+    pushStr('2 0 obj\n<< /Type /Pages /Kids [' + kids.join(' ') + '] /Count ' + pages.length + ' >>\nendobj\n');
+
+    for (var p = 0; p < pages.length; p++) {
+      var pg = pages[p];
+      var pageObj = 3 + p * 3, contentObj = pageObj + 1, imgObj = pageObj + 2;
+      var content = 'q\n' + num(pg.w) + ' 0 0 ' + num(pg.h) + ' ' + num(pg.x) + ' ' + num(pg.y) + ' cm\n/Im' + p + ' Do\nQ\n';
+      offsets[pageObj] = pos;
+      pushStr(pageObj + ' 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ' + num(pg.pw) + ' ' + num(pg.ph) +
+        '] /Resources << /XObject << /Im' + p + ' ' + imgObj + ' 0 R >> >> /Contents ' + contentObj + ' 0 R >>\nendobj\n');
+      offsets[contentObj] = pos;
+      pushStr(contentObj + ' 0 obj\n<< /Length ' + content.length + ' >>\nstream\n' + content + 'endstream\nendobj\n');
+      offsets[imgObj] = pos;
+      pushStr(imgObj + ' 0 obj\n<< /Type /XObject /Subtype /Image /Width ' + pg.iw + ' /Height ' + pg.ih +
+        ' /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ' + pg.jpeg.length + ' >>\nstream\n');
+      pushBytes(pg.jpeg);
+      pushStr('\nendstream\nendobj\n');
+    }
+
+    var xrefPos = pos;
+    var xref = 'xref\n0 ' + (totalObjs + 1) + '\n0000000000 65535 f \n';
+    for (var o = 1; o <= totalObjs; o++) {
+      var off = String(offsets[o]);
+      while (off.length < 10) off = '0' + off;
+      xref += off + ' 00000 n \n';
+    }
+    pushStr(xref);
+    pushStr('trailer\n<< /Size ' + (totalObjs + 1) + ' /Root 1 0 R >>\nstartxref\n' + xrefPos + '\n%%EOF');
+    var out = new Uint8Array(pos), at = 0;
+    for (var c = 0; c < chunks.length; c++) { out.set(chunks[c], at); at += chunks[c].length; }
+    return out;
+  }
+  /*PDF-BUILDER-END*/
+
+  function loadImage(f, cb){
+    var url = URL.createObjectURL(f);
+    var im = new Image();
+    im.onload = function(){ URL.revokeObjectURL(url); cb(im, null); };
+    im.onerror = function(){ URL.revokeObjectURL(url); cb(null, 'Could not read ' + f.name); };
+    im.src = url;
+  }
+
+  function imageToJpeg(im, cb){
+    var c = document.createElement('canvas');
+    c.width = im.naturalWidth; c.height = im.naturalHeight;
+    var ctx = c.getContext('2d');
+    ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, c.width, c.height);
+    ctx.drawImage(im, 0, 0);
+    c.toBlob(function(b){
+      if (!b) { cb(null); return; }
+      b.arrayBuffer().then(function(ab){ cb(new Uint8Array(ab)); });
+    }, 'image/jpeg', 0.92);
+  }
+
+  function renderList(){
+    listEl.innerHTML = '';
+    files.forEach(function(f, i){
+      var row = document.createElement('div');
+      row.className = 'fileitem';
+      var a = document.createElement('span'); a.textContent = (i + 1) + '. ' + f.name;
+      var b = document.createElement('span'); b.textContent = fmt(f.size);
+      row.appendChild(a); row.appendChild(b);
+      listEl.appendChild(row);
+    });
+    goBtn.disabled = files.length === 0;
+    msg.textContent = files.length ? files.length + ' image(s) ready — page order follows this list.' : 'Pick at least one image to start.';
+  }
+
+  fileInput.addEventListener('change', function(){
+    files = Array.prototype.slice.call(fileInput.files || []);
+    download.style.display = 'none';
+    renderList();
+  });
+
+  goBtn.addEventListener('click', function(){
+    if (!files.length) return;
+    goBtn.disabled = true;
+    msg.textContent = 'Building your PDF…';
+    var mode = pageSizeSel.value;
+    var margin = Math.max(0, parseFloat(marginInput.value) || 0);
+    var pages = [], i = 0;
+    function next(){
+      if (i >= files.length) {
+        var pdf = buildPdf(pages);
+        var blob = new Blob([pdf], { type: 'application/pdf' });
+        if (currentURL) URL.revokeObjectURL(currentURL);
+        currentURL = URL.createObjectURL(blob);
+        download.href = currentURL;
+        download.style.display = 'inline-block';
+        msg.innerHTML = '<span class="good">Done.</span> ' + pages.length + ' page(s), ' + fmt(blob.size) + '. Download it below.';
+        goBtn.disabled = false;
+        return;
+      }
+      var f = files[i++];
+      loadImage(f, function(im, err){
+        if (err || !im) { msg.textContent = err || 'Failed on an image.'; goBtn.disabled = false; return; }
+        imageToJpeg(im, function(jpeg){
+          if (!jpeg) { msg.textContent = 'Could not encode ' + f.name + ' as JPEG.'; goBtn.disabled = false; return; }
+          var iw = im.naturalWidth, ih = im.naturalHeight, pw, ph;
+          if (mode === 'a4') { pw = 595.28; ph = 841.89; }
+          else if (mode === 'letter') { pw = 612; ph = 792; }
+          else { pw = iw * 72 / 96 + margin * 2; ph = ih * 72 / 96 + margin * 2; }
+          var availW = pw - margin * 2, availH = ph - margin * 2;
+          var s = Math.min(availW / iw, availH / ih);
+          var w = iw * s, h = ih * s;
+          pages.push({ jpeg: jpeg, iw: iw, ih: ih, pw: pw, ph: ph,
+                       x: (pw - w) / 2, y: (ph - h) / 2, w: w, h: h });
+          next();
+        });
+      });
+    }
+    next();
+  });
+})();
+</script>
+</body>
+</html>

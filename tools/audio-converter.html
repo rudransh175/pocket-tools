@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Audio Converter &amp; Trimmer — Pocket Tools</title>
+<style>
+  * { box-sizing: border-box; }
+  body { margin:0; font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; background:#0b1020; color:#e8ebf5; }
+  .wrap { max-width:760px; margin:0 auto; padding:20px 16px 48px; }
+  a.back { color:#9aa3bd; text-decoration:none; font-size:14px; }
+  a.back:hover { color:#e8ebf5; }
+  h1 { font-size:28px; margin:14px 0 6px; }
+  .desc { color:#9aa3bd; margin:0 0 20px; }
+  .card { background:#151b31; border-radius:14px; padding:20px; margin-bottom:16px; }
+  label { display:block; font-size:14px; color:#9aa3bd; margin:14px 0 6px; }
+  label:first-child { margin-top:0; }
+  input[type=file] { width:100%; padding:10px; border-radius:10px; border:1px solid #2a3352; background:#0b1020; color:#e8ebf5; font-size:15px; }
+  input[type=range] { width:100%; accent-color:#6c5cff; }
+  .val { color:#e8ebf5; font-weight:600; }
+  button, .dl { display:inline-block; background:#6c5cff; color:#fff; border:none; padding:12px 20px; border-radius:10px; font-size:15px; font-weight:600; cursor:pointer; text-decoration:none; margin-top:14px; }
+  button.secondary { background:#232c49; }
+  button:disabled { opacity:.45; cursor:not-allowed; }
+  .row { display:flex; gap:8px; flex-wrap:wrap; }
+  .row button { margin-top:10px; }
+  .stats { display:flex; gap:12px; flex-wrap:wrap; margin-top:6px; }
+  .stat { flex:1 1 140px; background:#0b1020; border-radius:10px; padding:12px; text-align:center; }
+  .stat b { display:block; font-size:19px; }
+  .stat span { font-size:12px; color:#9aa3bd; }
+  .msg { color:#9aa3bd; font-size:14px; margin-top:10px; min-height:20px; line-height:1.55; }
+  .good { color:#5fd68a; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <a class="back" href="../index.html">← All tools</a>
+  <h1>Audio Converter &amp; Trimmer</h1>
+  <p class="desc">Load any audio file your browser can play, trim the start and end, and export clean WAV. Honest note: exports are WAV only — MP3 encoding needs a big library, and Pocket Tools files carry zero libraries. WAV is lossless and plays everywhere. Fully offline.</p>
+
+  <div class="card">
+    <label for="file">Choose an audio file (MP3, M4A, OGG, WAV…)</label>
+    <input type="file" id="file" accept="audio/*">
+    <div class="msg" id="msg">Pick an audio file to start.</div>
+  </div>
+
+  <div class="card" id="workCard" style="display:none">
+    <div class="stats">
+      <div class="stat"><b id="dur">–</b><span>Duration</span></div>
+      <div class="stat"><b id="info">–</b><span>Channels · Sample rate</span></div>
+      <div class="stat"><b id="orig">–</b><span>Original file</span></div>
+    </div>
+    <label for="start">Trim start: <span class="val" id="startVal">0.0s</span></label>
+    <input type="range" id="start" min="0" max="100" step="0.1" value="0">
+    <label for="end">Trim end: <span class="val" id="endVal">0.0s</span></label>
+    <input type="range" id="end" min="0" max="100" step="0.1" value="100">
+    <div class="msg" id="selMsg"></div>
+    <div class="row">
+      <button type="button" class="secondary" id="play">▶ Play trimmed part</button>
+      <button type="button" class="secondary" id="stop" disabled>■ Stop</button>
+      <button type="button" id="exportBtn">Export WAV</button>
+    </div>
+    <a class="dl" id="download" href="#" style="display:none">Download WAV</a>
+    <div class="msg" id="outMsg"></div>
+  </div>
+</div>
+
+<script>
+(function(){
+  var fileInput = document.getElementById('file');
+  var msg = document.getElementById('msg');
+  var workCard = document.getElementById('workCard');
+  var startSlider = document.getElementById('start');
+  var endSlider = document.getElementById('end');
+  var startVal = document.getElementById('startVal');
+  var endVal = document.getElementById('endVal');
+  var selMsg = document.getElementById('selMsg');
+  var outMsg = document.getElementById('outMsg');
+  var download = document.getElementById('download');
+
+  var actx = null, buffer = null, baseName = 'audio', currentURL = null, sourceNode = null;
+
+  function fmtBytes(b){
+    if (b < 1024) return b + ' B';
+    if (b < 1024*1024) return (b/1024).toFixed(1) + ' KB';
+    return (b/(1024*1024)).toFixed(2) + ' MB';
+  }
+  function fmtTime(s){
+    var m = Math.floor(s / 60), sec = s - m * 60;
+    return m + ':' + (sec < 10 ? '0' : '') + sec.toFixed(1);
+  }
+  function ctx(){
+    if (!actx) {
+      var AC = window.AudioContext || window.webkitAudioContext;
+      actx = new AC();
+    }
+    return actx;
+  }
+
+  /* Hand-rolled WAV encoder: 16-bit PCM, interleaved. */
+  function bufferToWav(buf, fromSec, toSec){
+    var rate = buf.sampleRate;
+    var channels = buf.numberOfChannels;
+    var startFrame = Math.floor(fromSec * rate);
+    var endFrame = Math.min(buf.length, Math.ceil(toSec * rate));
+    var frames = endFrame - startFrame;
+    var dataBytes = frames * channels * 2;
+    var ab = new ArrayBuffer(44 + dataBytes);
+    var v = new DataView(ab);
+    function wstr(off, s){ for (var i = 0; i < s.length; i++) v.setUint8(off + i, s.charCodeAt(i)); }
+    wstr(0, 'RIFF'); v.setUint32(4, 36 + dataBytes, true); wstr(8, 'WAVE');
+    wstr(12, 'fmt '); v.setUint32(16, 16, true); v.setUint16(20, 1, true);
+    v.setUint16(22, channels, true); v.setUint32(24, rate, true);
+    v.setUint32(28, rate * channels * 2, true); v.setUint16(32, channels * 2, true);
+    v.setUint16(34, 16, true); wstr(36, 'data'); v.setUint32(40, dataBytes, true);
+    var chans = [];
+    for (var c = 0; c < channels; c++) chans.push(buf.getChannelData(c));
+    var off = 44;
+    for (var f = 0; f < frames; f++) {
+      for (var ch = 0; ch < channels; ch++) {
+        var s = Math.max(-1, Math.min(1, chans[ch][startFrame + f]));
+        v.setInt16(off, s < 0 ? s * 0x8000 : s * 0x7FFF, true);
+        off += 2;
+      }
+    }
+    return new Blob([ab], { type: 'audio/wav' });
+  }
+
+  function selection(){
+    var d = buffer ? buffer.duration : 0;
+    var s = parseFloat(startSlider.value), e = parseFloat(endSlider.value);
+    if (s > e) { var t = s; s = e; e = t; }
+    return { s: s, e: e, len: Math.max(0, e - s) };
+  }
+  function updateLabels(){
+    if (!buffer) return;
+    var sel = selection();
+    startVal.textContent = fmtTime(parseFloat(startSlider.value));
+    endVal.textContent = fmtTime(parseFloat(endSlider.value));
+    selMsg.textContent = 'Selected: ' + fmtTime(sel.s) + ' → ' + fmtTime(sel.e) + ' (' + sel.len.toFixed(1) + ' seconds). WAV size will be about ' +
+      fmtBytes(Math.round(sel.len * buffer.sampleRate * buffer.numberOfChannels * 2) + 44) + '.';
+  }
+
+  fileInput.addEventListener('change', function(){
+    var f = fileInput.files && fileInput.files[0];
+    if (!f) return;
+    baseName = f.name.replace(/\.[^.]+$/, '') || 'audio';
+    msg.textContent = 'Decoding ' + f.name + '…';
+    f.arrayBuffer().then(function(ab){
+      ctx().decodeAudioData(ab, function(buf){
+        buffer = buf;
+        document.getElementById('dur').textContent = fmtTime(buf.duration);
+        document.getElementById('info').textContent = buf.numberOfChannels + ' ch · ' + buf.sampleRate + ' Hz';
+        document.getElementById('orig').textContent = fmtBytes(f.size) + ' ' + (f.type.replace('audio/', '') || 'audio').toUpperCase();
+        startSlider.max = buf.duration; startSlider.value = 0;
+        endSlider.max = buf.duration; endSlider.value = buf.duration;
+        workCard.style.display = 'block';
+        download.style.display = 'none';
+        outMsg.textContent = '';
+        msg.textContent = 'Decoded: ' + f.name;
+        updateLabels();
+      }, function(){
+        msg.textContent = 'Your browser could not decode that file. MP3, M4A/AAC, OGG, WAV and FLAC work in most browsers — try converting the source first.';
+      });
+    });
+  });
+
+  startSlider.addEventListener('input', updateLabels);
+  endSlider.addEventListener('input', updateLabels);
+
+  var stopBtn = document.getElementById('stop');
+  document.getElementById('play').addEventListener('click', function(){
+    if (!buffer) return;
+    if (actx.state === 'suspended') actx.resume();
+    stopPlayback();
+    var sel = selection();
+    sourceNode = actx.createBufferSource();
+    sourceNode.buffer = buffer;
+    sourceNode.connect(actx.destination);
+    sourceNode.onended = function(){ stopBtn.disabled = true; };
+    sourceNode.start(0, sel.s, sel.len);
+    stopBtn.disabled = false;
+  });
+  function stopPlayback(){
+    if (sourceNode) { try { sourceNode.onended = null; sourceNode.stop(); } catch (e) {} sourceNode = null; }
+    stopBtn.disabled = true;
+  }
+  stopBtn.addEventListener('click', stopPlayback);
+
+  document.getElementById('exportBtn').addEventListener('click', function(){
+    if (!buffer) return;
+    var sel = selection();
+    if (sel.len <= 0) { outMsg.textContent = 'The selected part is empty — move the sliders apart.'; return; }
+    var blob = bufferToWav(buffer, sel.s, sel.e);
+    if (currentURL) URL.revokeObjectURL(currentURL);
+    currentURL = URL.createObjectURL(blob);
+    download.href = currentURL;
+    download.download = baseName + '-trimmed.wav';
+    download.style.display = 'inline-block';
+    outMsg.innerHTML = '<span class="good">Ready.</span> ' + fmtTime(sel.len) + ' of WAV, ' + fmtBytes(blob.size) + '.';
+  });
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Compress to Exact Size — Pocket Tools</title>
+<style>
+  * { box-sizing: border-box; }
+  body { margin:0; font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; background:#0b1020; color:#e8ebf5; }
+  .wrap { max-width:760px; margin:0 auto; padding:20px 16px 48px; }
+  a.back { color:#9aa3bd; text-decoration:none; font-size:14px; }
+  a.back:hover { color:#e8ebf5; }
+  h1 { font-size:28px; margin:14px 0 6px; }
+  .desc { color:#9aa3bd; margin:0 0 20px; }
+  .card { background:#151b31; border-radius:14px; padding:20px; margin-bottom:16px; }
+  label { display:block; font-size:14px; color:#9aa3bd; margin:14px 0 6px; }
+  label:first-child { margin-top:0; }
+  input[type=file], input[type=number], select { width:100%; padding:10px; border-radius:10px; border:1px solid #2a3352; background:#0b1020; color:#e8ebf5; font-size:15px; }
+  .row { display:flex; gap:10px; }
+  .row > div { flex:1; }
+  button, .dl { display:inline-block; background:#6c5cff; color:#fff; border:none; padding:12px 20px; border-radius:10px; font-size:15px; font-weight:600; cursor:pointer; text-decoration:none; margin-top:14px; }
+  button:disabled { opacity:.45; cursor:not-allowed; }
+  .stats { display:flex; gap:12px; flex-wrap:wrap; margin-top:6px; }
+  .stat { flex:1 1 140px; background:#0b1020; border-radius:10px; padding:12px; text-align:center; }
+  .stat b { display:block; font-size:19px; }
+  .stat span { font-size:12px; color:#9aa3bd; }
+  img.preview { max-width:100%; border-radius:10px; margin-top:14px; display:none; }
+  .msg { color:#9aa3bd; font-size:14px; margin-top:10px; min-height:20px; line-height:1.55; }
+  .good { color:#5fd68a; }
+  .warn { color:#f2b04a; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <a class="back" href="../index.html">← All tools</a>
+  <h1>Compress to Exact Size</h1>
+  <p class="desc">Tell it the exact file size you need — say 200 KB for a form upload — and it squeezes your image to match, keeping dimensions as long as possible and only shrinking them when quality alone can't get there. Fully offline.</p>
+
+  <div class="card">
+    <label for="file">Choose an image</label>
+    <input type="file" id="file" accept="image/*">
+    <div class="row">
+      <div>
+        <label for="target">Target size</label>
+        <input type="number" id="target" min="5" step="1" value="200">
+      </div>
+      <div>
+        <label for="unit">Unit</label>
+        <select id="unit">
+          <option value="1024" selected>KB</option>
+          <option value="1048576">MB</option>
+        </select>
+      </div>
+      <div>
+        <label for="format">Format</label>
+        <select id="format">
+          <option value="image/jpeg" selected>JPEG</option>
+          <option value="image/webp">WebP</option>
+        </select>
+      </div>
+    </div>
+    <button type="button" id="go" disabled>Compress to target</button>
+    <div class="msg" id="msg">Pick an image to start.</div>
+  </div>
+
+  <div class="card" id="resultCard" style="display:none">
+    <div class="stats">
+      <div class="stat"><b id="origSize">–</b><span>Original</span></div>
+      <div class="stat"><b id="newSize">–</b><span>Achieved</span></div>
+      <div class="stat"><b id="wantSize">–</b><span>Target</span></div>
+      <div class="stat"><b id="how">–</b><span>Quality · Dimensions</span></div>
+    </div>
+    <img class="preview" id="preview" alt="Compressed preview">
+    <br>
+    <a class="dl" id="download" href="#" style="display:none">Download image</a>
+  </div>
+</div>
+
+<script>
+(function(){
+  var fileInput = document.getElementById('file');
+  var targetInput = document.getElementById('target');
+  var unitSel = document.getElementById('unit');
+  var formatSel = document.getElementById('format');
+  var goBtn = document.getElementById('go');
+  var msg = document.getElementById('msg');
+  var resultCard = document.getElementById('resultCard');
+  var preview = document.getElementById('preview');
+  var download = document.getElementById('download');
+  var img = null, origFile = null, origBytes = 0, baseName = 'compressed', currentURL = null;
+
+  var QUALITY_FLOOR = 0.5;   // below this, shrink dimensions instead of quality
+  var TOLERANCE = 0.02;      // ±2% of target counts as a hit
+
+  function fmt(b){
+    if (b < 1024) return b + ' B';
+    if (b < 1024*1024) return (b/1024).toFixed(1) + ' KB';
+    return (b/(1024*1024)).toFixed(2) + ' MB';
+  }
+
+  /*SEARCH-HELPER-START*/
+  // Pure binary search over encoder quality.
+  // encode(q, cb) must call cb(sizeInBytes) and be monotonic: bigger q -> bigger size.
+  // Calls done({q, size, overshoot}) with the best quality whose size is <= target,
+  // or overshoot=true with the floor quality if even that is too big.
+  function searchQuality(encode, target, lo, hi, iterations, done){
+    encode(hi, function(sizeHi){
+      if (sizeHi <= target) { done({ q: hi, size: sizeHi, overshoot: false }); return; }
+      encode(lo, function(sizeLo){
+        if (sizeLo > target) { done({ q: lo, size: sizeLo, overshoot: true }); return; }
+        var best = { q: lo, size: sizeLo, overshoot: false };
+        var i = 0;
+        (function step(){
+          if (i >= iterations) { done(best); return; }
+          i++;
+          var q = (lo + hi) / 2;
+          encode(q, function(size){
+            if (size <= target) { best = { q: q, size: size, overshoot: false }; lo = q; }
+            else { hi = q; }
+            step();
+          });
+        })();
+      });
+    });
+  }
+  /*SEARCH-HELPER-END*/
+
+  function makeCanvas(scale){
+    var w = Math.max(1, Math.round(img.naturalWidth * scale));
+    var h = Math.max(1, Math.round(img.naturalHeight * scale));
+    var canvas = document.createElement('canvas');
+    canvas.width = w; canvas.height = h;
+    var ctx = canvas.getContext('2d');
+    ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, w, h);
+    ctx.drawImage(img, 0, 0, w, h);
+    return canvas;
+  }
+
+  function finish(blob, q, scale, note, extOverride){
+    if (currentURL) URL.revokeObjectURL(currentURL);
+    currentURL = URL.createObjectURL(blob);
+    preview.src = currentURL; preview.style.display = 'block';
+    var type = formatSel.value;
+    download.href = currentURL;
+    download.download = baseName + '-exact.' + (extOverride || (type === 'image/webp' ? 'webp' : 'jpg'));
+    download.style.display = 'inline-block';
+    document.getElementById('origSize').textContent = fmt(origBytes);
+    document.getElementById('newSize').textContent = fmt(blob.size);
+    document.getElementById('wantSize').textContent = fmt(targetBytes());
+    document.getElementById('how').textContent =
+      (q !== null ? Math.round(q*100) + '% · ' : '') +
+      Math.round(img.naturalWidth * scale) + ' × ' + Math.round(img.naturalHeight * scale);
+    resultCard.style.display = 'block';
+    msg.innerHTML = note;
+    goBtn.disabled = false;
+  }
+
+  function targetBytes(){
+    var v = parseFloat(targetInput.value);
+    if (!isFinite(v) || v <= 0) return 0;
+    return Math.round(v * parseInt(unitSel.value, 10));
+  }
+
+  function run(){
+    if (!img) return;
+    var target = targetBytes();
+    if (!target) { msg.textContent = 'Type a valid target size first.'; return; }
+    goBtn.disabled = true;
+    resultCard.style.display = 'none';
+
+    if (target >= origBytes) {
+      // Can't compress "up" to a bigger size — hand back the original, untouched.
+      msg.innerHTML = '<span class="warn">Your target (' + fmt(target) + ') is bigger than the original (' +
+        fmt(origBytes) + '), so there is nothing to compress.</span> The download below is your original file, unchanged — padding a file with junk bytes to fake a bigger size would help nobody.';
+      var origExt = (origFile.name.split('.').pop() || 'img').toLowerCase();
+      finish(origFile, null, 1, msg.innerHTML, origExt);
+      return;
+    }
+
+    var type = formatSel.value;
+    var scale = 1, rounds = 0;
+
+    function tryScale(){
+      rounds++;
+      var canvas = makeCanvas(scale);
+      var encode = function(q, cb){
+        canvas.toBlob(function(b){ cb(b ? b.size : Infinity); }, type, q);
+      };
+      msg.textContent = 'Working… round ' + rounds + (scale < 1 ? ' at ' + Math.round(scale*100) + '% size' : '') + ' — searching quality.';
+      searchQuality(encode, target, QUALITY_FLOOR, 0.98, 8, function(res){
+        if (!res.overshoot && res.size >= target * (1 - TOLERANCE)) {
+          canvas.toBlob(function(b){
+            finish(b, res.q, scale, '<span class="good">Done — hit the target.</span> ' +
+              fmt(b.size) + ' vs target ' + fmt(target) + ' (within ' + (Math.abs(b.size-target)/target*100).toFixed(1) + '%). ' +
+              'Quality ' + Math.round(res.q*100) + '%' + (scale < 1 ? ', dimensions scaled to ' + Math.round(scale*100) + '%' : ', dimensions untouched') + '.');
+          }, type, res.q);
+          return;
+        }
+        if (!res.overshoot) {
+          // Under target but by more than the tolerance — quality steps are coarse
+          // at small sizes. Accept the closest honest result instead of looping.
+          canvas.toBlob(function(b){
+            finish(b, res.q, scale, '<span class="good">Done — closest match.</span> ' + fmt(b.size) +
+              ' vs target ' + fmt(target) + '. The encoder could not land closer without dropping quality further; this is the best size under your target at these dimensions.');
+          }, type, res.q);
+          return;
+        }
+        // Even the quality floor is too big at this scale — shrink and retry.
+        var shrink = Math.sqrt(target / res.size) * 0.97;
+        var newScale = scale * shrink;
+        var minDim = Math.min(img.naturalWidth, img.naturalHeight) * newScale;
+        if (newScale < 0.05 || minDim < 24 || rounds >= 8) {
+          canvas.toBlob(function(b){
+            finish(b, QUALITY_FLOOR, scale, '<span class="warn">Best effort.</span> Even at quality ' +
+              Math.round(QUALITY_FLOOR*100) + '% and ' + Math.round(scale*100) + '% dimensions, the image is ' + fmt(b.size) +
+              ' — bigger than your ' + fmt(target) + ' target. A target that small costs visible quality no matter what; try a slightly bigger target.');
+          }, type, QUALITY_FLOOR);
+          return;
+        }
+        scale = newScale;
+        tryScale();
+      });
+    }
+    tryScale();
+  }
+
+  fileInput.addEventListener('change', function(){
+    var f = fileInput.files && fileInput.files[0];
+    if (!f) return;
+    if (f.type.indexOf('image/') !== 0) { msg.textContent = 'That is not an image file.'; return; }
+    origFile = f; origBytes = f.size;
+    baseName = f.name.replace(/\.[^.]+$/, '') || 'image';
+    var url = URL.createObjectURL(f);
+    var tmp = new Image();
+    tmp.onload = function(){
+      img = tmp; goBtn.disabled = false;
+      msg.textContent = 'Loaded ' + f.name + ' — original size ' + fmt(origBytes) + ', ' +
+        img.naturalWidth + ' × ' + img.naturalHeight + ' px. Set your target and press the button.';
+    };
+    tmp.onerror = function(){ msg.textContent = 'Could not read that image. Try another file.'; };
+    tmp.src = url;
+  });
+  goBtn.addEventListener('click', run);
+})();
+</script>
+</body>
+</html>

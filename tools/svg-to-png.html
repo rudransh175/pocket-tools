@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SVG to PNG — Pocket Tools</title>
+<style>
+  * { box-sizing: border-box; }
+  body { margin:0; font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; background:#0b1020; color:#e8ebf5; }
+  .wrap { max-width:760px; margin:0 auto; padding:20px 16px 48px; }
+  a.back { color:#9aa3bd; text-decoration:none; font-size:14px; }
+  a.back:hover { color:#e8ebf5; }
+  h1 { font-size:28px; margin:14px 0 6px; }
+  .desc { color:#9aa3bd; margin:0 0 20px; }
+  .card { background:#151b31; border-radius:14px; padding:20px; margin-bottom:16px; }
+  label { display:block; font-size:14px; color:#9aa3bd; margin:14px 0 6px; }
+  label:first-child { margin-top:0; }
+  input[type=file], input[type=number], input[type=color], select { width:100%; padding:10px; border-radius:10px; border:1px solid #2a3352; background:#0b1020; color:#e8ebf5; font-size:15px; }
+  textarea { width:100%; min-height:130px; padding:12px; border-radius:10px; border:1px solid #2a3352; background:#0b1020; color:#e8ebf5; font-family: ui-monospace, Menlo, Consolas, monospace; font-size:13px; line-height:1.5; resize:vertical; }
+  button, .dl { display:inline-block; background:#6c5cff; color:#fff; border:none; padding:12px 20px; border-radius:10px; font-size:15px; font-weight:600; cursor:pointer; text-decoration:none; margin-top:14px; }
+  .row { display:flex; gap:10px; }
+  .row > div { flex:1; }
+  .previewbox { background: repeating-conic-gradient(#1a2140 0% 25%, #121830 0% 50%) 0 0/24px 24px; border-radius:10px; padding:14px; text-align:center; margin-top:14px; display:none; }
+  .previewbox img { max-width:100%; }
+  .msg { color:#9aa3bd; font-size:14px; margin-top:10px; min-height:20px; line-height:1.55; }
+  .bad { color:#f2797a; }
+  .good { color:#5fd68a; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <a class="back" href="../index.html">← All tools</a>
+  <h1>SVG to PNG</h1>
+  <p class="desc">Turn vector SVG artwork into a PNG at any size — crisp at 4×, with a transparent or coloured background. Paste the code or upload the .svg file. Fully offline.</p>
+
+  <div class="card">
+    <label for="file">Upload an .svg file…</label>
+    <input type="file" id="file" accept=".svg,image/svg+xml">
+    <label for="code">…or paste SVG code</label>
+    <textarea id="code" placeholder="&lt;svg width=&quot;100&quot; height=&quot;100&quot;&gt;…&lt;/svg&gt;"></textarea>
+    <div class="row">
+      <div>
+        <label for="width">Output width (px)</label>
+        <input type="number" id="width" min="1" max="8000" placeholder="As authored">
+      </div>
+      <div>
+        <label for="scale">…or scale</label>
+        <select id="scale">
+          <option value="">Width box wins</option>
+          <option value="1">1×</option>
+          <option value="2">2×</option>
+          <option value="4">4×</option>
+          <option value="8">8×</option>
+        </select>
+      </div>
+      <div>
+        <label for="bg">Background</label>
+        <select id="bg">
+          <option value="transparent" selected>Transparent</option>
+          <option value="#ffffff">White</option>
+          <option value="#000000">Black</option>
+          <option value="custom">Custom colour →</option>
+        </select>
+      </div>
+      <div>
+        <label for="bgColor">Custom</label>
+        <input type="color" id="bgColor" value="#6c5cff">
+      </div>
+    </div>
+    <button type="button" id="go">Render PNG</button>
+    <div class="msg" id="msg">An SVG that references external images or fonts cannot render offline — self-contained SVGs work perfectly.</div>
+    <div class="previewbox" id="previewBox"><img id="preview" alt="Rendered PNG preview"></div>
+    <br>
+    <a class="dl" id="download" href="#" download="svg.png" style="display:none">Download PNG</a>
+  </div>
+</div>
+
+<script>
+(function(){
+  var fileInput = document.getElementById('file');
+  var codeEl = document.getElementById('code');
+  var widthInput = document.getElementById('width');
+  var scaleSel = document.getElementById('scale');
+  var bgSel = document.getElementById('bg');
+  var bgColor = document.getElementById('bgColor');
+  var msg = document.getElementById('msg');
+  var previewBox = document.getElementById('previewBox');
+  var preview = document.getElementById('preview');
+  var download = document.getElementById('download');
+  var currentURL = null;
+
+  function intrinsicSize(text){
+    var w = 0, h = 0;
+    try {
+      var doc = new DOMParser().parseFromString(text, 'image/svg+xml');
+      var root = doc.documentElement;
+      if (root.tagName.toLowerCase() === 'parsererror' || root.getElementsByTagName('parsererror').length)
+        return { error: 'That does not parse as valid SVG/XML.' };
+      w = parseFloat(root.getAttribute('width')) || 0;
+      h = parseFloat(root.getAttribute('height')) || 0;
+      if ((!w || !h) && root.getAttribute('viewBox')) {
+        var vb = root.getAttribute('viewBox').split(/[\s,]+/).map(parseFloat);
+        if (vb.length === 4) { w = w || vb[2]; h = h || vb[3]; }
+      }
+    } catch (e) { return { error: 'That does not parse as valid SVG/XML.' }; }
+    if (!w || !h) return { error: 'Could not find a width/height or viewBox in this SVG — add one and try again.' };
+    return { w: w, h: h };
+  }
+
+  fileInput.addEventListener('change', function(){
+    var f = fileInput.files && fileInput.files[0];
+    if (!f) return;
+    f.text().then(function(t){ codeEl.value = t; render(); });
+  });
+
+  function render(){
+    var text = codeEl.value.trim();
+    if (!text) { msg.innerHTML = '<span class="bad">Paste SVG code or upload a file first.</span>'; return; }
+    var size = intrinsicSize(text);
+    if (size.error) { msg.innerHTML = '<span class="bad">' + size.error + '</span>'; return; }
+    var tw, th;
+    var wanted = parseInt(widthInput.value, 10);
+    if (scaleSel.value) {
+      tw = Math.round(size.w * parseFloat(scaleSel.value));
+      th = Math.round(size.h * parseFloat(scaleSel.value));
+    } else if (wanted && wanted > 0) {
+      tw = wanted; th = Math.round(size.h * wanted / size.w);
+    } else { tw = Math.round(size.w); th = Math.round(size.h); }
+
+    var url = URL.createObjectURL(new Blob([text], { type: 'image/svg+xml' }));
+    var im = new Image();
+    im.onload = function(){
+      var c = document.createElement('canvas');
+      c.width = tw; c.height = th;
+      var ctx = c.getContext('2d');
+      var bg = bgSel.value === 'custom' ? bgColor.value : bgSel.value;
+      if (bg !== 'transparent') { ctx.fillStyle = bg; ctx.fillRect(0, 0, tw, th); }
+      ctx.drawImage(im, 0, 0, tw, th);
+      URL.revokeObjectURL(url);
+      c.toBlob(function(blob){
+        if (!blob) { msg.textContent = 'Rendering failed.'; return; }
+        if (currentURL) URL.revokeObjectURL(currentURL);
+        currentURL = URL.createObjectURL(blob);
+        preview.src = currentURL;
+        previewBox.style.display = 'block';
+        download.href = currentURL;
+        download.style.display = 'inline-block';
+        msg.innerHTML = '<span class="good">Rendered.</span> ' + tw + ' × ' + th + ' px PNG. The preview sits on a checkerboard so transparency is visible.';
+      }, 'image/png');
+    };
+    im.onerror = function(){
+      URL.revokeObjectURL(url);
+      msg.innerHTML = '<span class="bad">The browser refused to draw this SVG.</span> Usual cause: it references external images/fonts, which cannot load inside an image. Inline them and retry.';
+    };
+    im.src = url;
+  }
+
+  document.getElementById('go').addEventListener('click', render);
+})();
+</script>
+</body>
+</html>
